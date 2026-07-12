@@ -1,11 +1,13 @@
 # ⚡Use Every Token Wisely⚡
 
-> ## 🔒 100% Local · No API Calls · No Data Collection · Your Keys Never Leave Your Machine
-> 
-> This widget runs **entirely on your computer**. It does **not** call any third-party API,
-> does **not** collect or transmit any data, and does **not** touch your API keys — they are
-> read from each tool's own local config and used only to check your quota on the
-> **official endpoints** those tools already use. No telemetry. No tracking. Nothing phones home.
+> ## 🔒 No Third-Party Backend · No Telemetry · Credentials Stay on Your Device
+>
+> This widget runs **entirely on your computer**. It does **not** route through any
+> third-party server, does **not** collect telemetry or analytics, and your API keys and
+> tokens **never leave your machine** — they are read from each tool's own local config
+> files and used only to authenticate against that provider's **official endpoints**.
+>
+> Connects directly to official provider endpoints only when required to retrieve quota information.
 
 A translucent, always-on-top desktop widget that monitors your **real-time AI usage quotas** — so you always know how much runway you have left.
 
@@ -16,7 +18,7 @@ Supports **Zcode**, **Claude**, **Codex**, and **Trae**. Works on **Windows** an
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow)
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![macOS](https://img.shields.io/badge/platform-macOS-silver)
-![100% Local](https://img.shields.io/badge/privacy-100%25_local-brightgreen)
+![No Tracking](https://img.shields.io/badge/privacy-no_tracking-brightgreen)
 
 ![Screenshot](docs/screenshot.png)
 
@@ -81,7 +83,7 @@ This creates a `Use Every Token Wisely.command` file on your Desktop. The first 
 | **Codex** | Black | Real `rate_limits` from local session files (`~/.codex/sessions/`) |
 | **Trae** | Green | *Placeholder* — Trae's quota API is protected by ByteDance's `ttnet` signing. Shows plan tier (Free/Pro); full quota data coming when a public API is available |
 
-All credentials are read from your existing local installs — **no API keys to configure, no manual entry**. Nothing is sent anywhere except to the official quota endpoints each tool already uses.
+All credentials are read from your existing local installs — **no API keys to configure, no manual entry**. The widget connects directly to each provider's official quota endpoint when needed; it does not route through any third-party server, does not collect telemetry, and your keys never leave your device.
 
 ## How Quotas Are Read
 
