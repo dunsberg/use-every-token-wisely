@@ -65,16 +65,82 @@ class ClaudeProvider(BaseProvider):
     default_budget_5h = 100
     default_budget_7d = 100
 
-    def _load_token(self) -> str | None:
+    REFRESH_URL = "https://platform.claude.com/v1/oauth/token"
+    CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+
+    def _load_credentials(self) -> dict | None:
+        """Load the full credentials dict from disk."""
         creds_path = _home() / ".claude" / ".credentials.json"
         if not creds_path.exists():
             return None
         try:
-            creds = json.loads(creds_path.read_text(encoding="utf-8"))
+            return json.loads(creds_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return None
+
+    def _save_credentials(self, creds: dict) -> None:
+        """Write credentials back to disk (after token refresh)."""
+        creds_path = _home() / ".claude" / ".credentials.json"
+        try:
+            creds_path.write_text(
+                json.dumps(creds, indent=2), encoding="utf-8"
+            )
+        except OSError:
+            pass
+
+    def _load_token(self) -> str | None:
+        """Load access token, auto-refreshing if expired."""
+        creds = self._load_credentials()
+        if not creds:
+            return None
         oauth = creds.get("claudeAiOauth", {})
-        return oauth.get("accessToken")
+        access_token = oauth.get("accessToken")
+        expires_at = oauth.get("expiresAt", 0)
+        refresh_token = oauth.get("refreshToken")
+        refresh_expires_at = oauth.get("refreshTokenExpiresAt", 0)
+
+        # Check if access token is still valid (with 60s margin).
+        import time
+        now_ms = int(time.time() * 1000)
+        if access_token and now_ms < (expires_at - 60_000):
+            return access_token
+
+        # Access token expired — try to refresh if refresh token is valid.
+        if not refresh_token or now_ms >= refresh_expires_at:
+            return access_token  # can't refresh, return stale token
+
+        new_token = self._refresh_token(refresh_token)
+        if new_token:
+            # Persist the refreshed token back to the credentials file.
+            oauth["accessToken"] = new_token["access_token"]
+            oauth["expiresAt"] = now_ms + new_token.get("expires_in", 3600) * 1000
+            if "refresh_token" in new_token:
+                oauth["refreshToken"] = new_token["refresh_token"]
+            creds["claudeAiOauth"] = oauth
+            self._save_credentials(creds)
+            return new_token["access_token"]
+
+        return access_token  # refresh failed, return stale token
+
+    def _refresh_token(self, refresh_token: str) -> dict | None:
+        """Exchange a refresh token for a new access token."""
+        from urllib.parse import urlencode
+
+        data = urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": self.CLIENT_ID,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(self.REFRESH_URL, data=data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header("User-Agent", "claude-code/2.1.207")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
+            return None
 
     def _fetch_usage(self) -> dict | None:
         token = self._load_token()
