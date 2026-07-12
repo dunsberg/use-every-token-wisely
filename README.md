@@ -80,4 +80,4 @@ On first run, a `config.json` is created in the project directory to remember:
 
 ## Contact
 
-Open an issue at [github.com/studio1008/use-every-token-wisely/issues](https://github.com/studio1008/use-every-token-wisely/issues)
+Open an issue at [github.com/dunsberg/use-every-token-wisely/issues](https://github.com/dunsberg/use-every-token-wisely/issues)
