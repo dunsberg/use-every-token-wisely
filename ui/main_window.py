@@ -204,10 +204,10 @@ class MainWindow(QMainWindow):
 
         self._providers: list[tuple[str, BaseProvider, ServiceCard]] = []
         for name, provider_cls in [
-            ("ZCODE", ZCodeProvider),
+            ("Zcode", ZCodeProvider),
             ("Claude", ClaudeProvider),
             ("Codex", CodexProvider),
-            ("TRAE", TraeProvider),
+            ("Trae", TraeProvider),
         ]:
             b = budgets.get(name, {})
             provider = provider_cls(
@@ -249,7 +249,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(title)
 
         # Countdown on its own line, centered, below the title.
-        self.countdown_label = QLabel('<span style="color: rgba(0,0,0,0.50);">REFRESH IN: --:--</span>')
+        self.countdown_label = QLabel('<span style="color: rgba(0,0,0,0.50);">Refresh in: --:--</span>')
         self.countdown_label.setObjectName("countdown")
         self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.countdown_label.setTextFormat(Qt.TextFormat.RichText)
@@ -301,10 +301,6 @@ class MainWindow(QMainWindow):
         self._refresh_timer.timeout.connect(self._on_refresh_tick)
         self._refresh_timer.start(COUNTDOWN_TICK_MS)
 
-        self._countdown_timer = QTimer(self)
-        self._countdown_timer.timeout.connect(self._on_refresh_tick)
-        self._countdown_timer.start(COUNTDOWN_TICK_MS)
-
     def _on_refresh_tick(self) -> None:
         self._seconds_to_refresh -= 1
         if self._seconds_to_refresh <= 0:
@@ -316,9 +312,9 @@ class MainWindow(QMainWindow):
         m, s = divmod(self._seconds_to_refresh, 60)
         time_str = f"{m:02d}:{s:02d}"
         if self._seconds_to_refresh <= PULSE_THRESHOLD:
-            # Only the number turns purple; "REFRESH IN:" stays normal.
+            # Only the number turns purple; "Refresh in:" stays normal.
             html = (
-                f'<span style="color: rgba(0,0,0,0.50);">REFRESH IN: </span>'
+                f'<span style="color: rgba(0,0,0,0.50);">Refresh in: </span>'
                 f'<span style="color: #8b3df0; font-weight: bold;">{time_str}</span>'
             )
             self.countdown_label.setText(html)
@@ -327,7 +323,7 @@ class MainWindow(QMainWindow):
             self.countdown_label.setContentsMargins(10 + offset, 0, 10 - offset, 0)
         else:
             html = (
-                f'<span style="color: rgba(0,0,0,0.50);">REFRESH IN: </span>'
+                f'<span style="color: rgba(0,0,0,0.50);">Refresh in: </span>'
                 f'<span style="color: rgba(0,0,0,0.50); font-weight: bold;">{time_str}</span>'
             )
             self.countdown_label.setText(html)
@@ -336,7 +332,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ refresh
     def refresh_now(self) -> None:
         self._seconds_to_refresh = REFRESH_INTERVAL_SEC
-        self.countdown_label.setText('<span style="color: rgba(0,0,0,0.50);">REFRESH IN: refreshing...</span>')
+        self.countdown_label.setText('<span style="color: rgba(0,0,0,0.50);">Refresh in: refreshing...</span>')
         QApplication.processEvents()
         for _name, provider, card in self._providers:
             try:
@@ -420,7 +416,7 @@ class MainWindow(QMainWindow):
         msg.setText(
             "<h3 align='center'>⚡Use Every Token Wisely⚡</h3>"
             "<p align='center'>Real-time AI usage monitor for</p>"
-            "<p align='center'><b>ZCODE · Claude · Codex · TRAE</b></p>"
+            "<p align='center'><b>Zcode · Claude · Codex · Trae</b></p>"
             "<br>"
             "<p align='center'>github.com/dunsberg/use-every-token-wisely</p>"
             "<p align='center'><b>MIT License</b></p>"

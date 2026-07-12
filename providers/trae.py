@@ -65,7 +65,7 @@ class TraeProvider(BaseProvider):
             return ""
 
     def fetch(self) -> UsageData:
-        data = UsageData(service="TRAE")
+        data = UsageData(service="Trae")
         data.model = "Doubao / GLM"
         plan = self._read_plan_tier()
         data.plan_type = plan or "Free"

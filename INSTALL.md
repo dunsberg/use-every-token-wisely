@@ -16,10 +16,10 @@ If you don't have Python:
 - **macOS:** `brew install python` or download from [python.org](https://www.python.org/downloads/)
 
 You also need at least **one** of these AI tools installed locally (so the widget has data to read):
-- [ZCODE](https://z.ai)
+- [Zcode](https://z.ai)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Codex](https://github.com/openai/codex)
-- [TRAE](https://www.trae.cn/)
+- [Trae](https://www.trae.cn/)
 
 ---
 
@@ -114,11 +114,11 @@ It may have spawned off-screen. Delete `config.json` in the project folder and r
 ### A service shows "Cannot reach..." or "No data"
 Make sure the corresponding tool is installed and you've logged in at least once:
 - **Claude**: Run `claude` in terminal to initialize credentials
-- **ZCODE**: Open ZCODE and log in
+- **Zcode**: Open Zcode and log in
 - **Codex**: Open Codex and start at least one session
 
 ### Claude shows "Cannot reach claude.ai/api/oauth/usage"
 Cloudflare sometimes blocks automated requests. The widget retries automatically; if it persists, wait a few minutes and right-click → **Refresh now**.
 
-### TRAE shows "Free Plan N/A"
-This is expected for free-tier TRAE users. TRAE's quota API is protected by ByteDance's proprietary signing layer. See the [README](README.md) for details.
+### Trae shows "Free Plan N/A"
+This is expected for free-tier Trae users. Trae's quota API is protected by ByteDance's proprietary signing layer. See the [README](README.md) for details.
