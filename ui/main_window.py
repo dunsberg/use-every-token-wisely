@@ -285,7 +285,7 @@ class MainWindow(QMainWindow):
         msg.setText(
             "<h3>Use Every Token Wisely</h3>"
             "<p>AI usage monitor for ZCODE · Claude · Codex</p>"
-            "<p>✉️ mingsberghui@gmail.com</p>"
+            "<p>Open source under MIT License</p>"
         )
         msg.setStyleSheet(styles.WINDOW_QSS)
         msg.exec()
