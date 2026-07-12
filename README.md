@@ -12,6 +12,17 @@ Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**. Works on **Windows** an
 
 ![Screenshot](docs/screenshot.png)
 
+## 🔒 Privacy — 100% Local, Zero Data Collection
+
+This widget is **completely local**. It runs entirely on your machine.
+
+- ✅ **No third-party API calls** — the widget never sends your data to any external service
+- ✅ **No data collection or transmission** — your usage data stays on your computer, period
+- ✅ **Your keys never leave your machine** — API keys and tokens are read from each tool's own local config files and used only to authenticate against the **official quota endpoints** that those tools already use themselves
+- ✅ **No telemetry, no analytics, no tracking** — not a single line of code phones home
+
+The only network requests the widget makes are to the **same official endpoints** that ZCODE, Claude, and Codex already call internally to check your quota — authenticated with credentials that are **already stored locally** on your machine by those tools. The widget does not intercept, store, or forward any of your conversations, code, or personal data.
+
 ## 30-Second Start
 
 ```bash
