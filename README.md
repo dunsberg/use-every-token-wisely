@@ -2,12 +2,13 @@
 
 A translucent, always-on-top desktop widget that monitors your **real-time AI usage quotas** — so you always know how much runway you have left.
 
-Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**.
+Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**. Works on **Windows** and **macOS**.
 
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/GUI-PySide6-green)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow)
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
+![macOS](https://img.shields.io/badge/platform-macOS-silver)
 
 ## Features
 
@@ -18,20 +19,35 @@ Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**.
 - 🎨 **Service-themed colors** — ZCODE (blue), Claude (orange), Codex (black), TRAE (green)
 - 🔴 **Low-quota alert** — percentage text turns red when remaining drops below 10%
 - 📂 **Collapsible cards** — fold/unfold any service from the right-click menu
-- 🚀 **Launch on startup** — optional auto-launch when you boot Windows
+- 🚀 **Launch on startup** — optional auto-launch on boot (Windows Startup folder / macOS LaunchAgent)
 - 🖱️ **Drag to reposition** — position is saved automatically
 
 ## Quick Start
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
+### Windows
 
-# Run it
+```bash
+pip install -r requirements.txt
 python main.py
 ```
 
-Or double-click the desktop shortcut (run `python create_shortcut.py` to create one).
+Or double-click the desktop shortcut:
+```bash
+python create_shortcut.py
+```
+
+### macOS
+
+```bash
+pip install -r requirements.txt
+python3 main.py
+```
+
+Or create a desktop launcher:
+```bash
+python3 create_shortcut.py
+```
+This creates a `Use Every Token Wisely.command` file on your Desktop. The first time you run it, right-click → **Open** to bypass Gatekeeper.
 
 ## Supported Services
 
@@ -56,7 +72,7 @@ Reads `~/.claude/.credentials.json` for the OAuth access token, then calls `clau
 Parses the most recent session file in `~/.codex/sessions/` for the last `token_count` event, which contains real `rate_limits` with `used_percent` and `resets_at` for both 5-hour (`primary`) and 7-day (`secondary`) windows.
 
 ### TRAE (ByteDance)
-Reads the cached plan tier from `~/.trae-cn/` local storage. TRAE's live usage API (`api.trae.cn/trae/api/v2/pay/ide_user_ent_usage`) is protected by ByteDance's proprietary `ttnet` signing layer, which cannot be replicated in plain HTTP requests. Shows "Free Plan N/A" for free users; paid plan support is a work in progress.
+Reads the cached plan tier from TRAE's local Electron storage (`AppData/Roaming/Trae CN/` on Windows, `~/Library/Application Support/Trae CN/` on macOS). TRAE's live usage API (`api.trae.cn/trae/api/v2/pay/ide_user_ent_usage`) is protected by ByteDance's proprietary `ttnet` signing layer, which cannot be replicated in plain HTTP requests. Shows "Free Plan N/A" for free users; paid plan support is a work in progress.
 
 ## Usage
 
@@ -72,7 +88,7 @@ Reads the cached plan tier from `~/.trae-cn/` local storage. TRAE's live usage A
 
 - Python 3.12+
 - PySide6 (`pip install -r requirements.txt`)
-- Windows (tested on Windows 11)
+- **Windows** (tested on Windows 11) or **macOS** (tested on macOS 14+)
 - At least one of: ZCODE, Claude Code, Codex, or TRAE installed locally
 
 ## License

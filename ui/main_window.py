@@ -98,30 +98,83 @@ def save_config(cfg: dict) -> None:
         pass
 
 
-def _startup_lnk_path() -> Path:
-    """Path to the shortcut in the Windows Startup folder."""
+IS_MAC = sys.platform == "darwin"
+
+# --- Autostart: cross-platform --------------------------------------------
+_MAC_PLIST_NAME = "com.dunsberg.use-every-token-wisely.plist"
+
+
+def _mac_launchagent_path() -> Path:
+    return Path.home() / "Library" / "LaunchAgents" / _MAC_PLIST_NAME
+
+
+def _win_startup_lnk_path() -> Path:
     return Path(os.path.expandvars(
         r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
     )) / "Use Every Token Wisely.lnk"
 
 
 def _desktop_lnk_path() -> Path:
+    if IS_MAC:
+        return Path.home() / "Desktop" / "Use Every Token Wisely.command"
     return Path.home() / "Desktop" / "Use Every Token Wisely.lnk"
 
 
 def is_autostart_enabled() -> bool:
-    return _startup_lnk_path().exists()
+    if IS_MAC:
+        return _mac_launchagent_path().exists()
+    return _win_startup_lnk_path().exists()
 
 
 def set_autostart(enabled: bool) -> None:
-    """Enable/disable boot launch by creating/removing the Startup shortcut."""
-    startup = _startup_lnk_path()
+    """Enable/disable boot launch — cross-platform."""
+    if IS_MAC:
+        _set_autostart_mac(enabled)
+    else:
+        _set_autostart_windows(enabled)
+
+
+def _set_autostart_mac(enabled: bool) -> None:
+    plist_path = _mac_launchagent_path()
+    if enabled:
+        project_dir = Path(__file__).resolve().parent.parent
+        main_py = project_dir / "main.py"
+        plist_path.parent.mkdir(parents=True, exist_ok=True)
+        plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.dunsberg.use-every-token-wisely</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{sys.executable}</string>
+        <string>{main_py}</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>{project_dir}</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/dev/null</string>
+    <key>StandardErrorPath</key>
+    <string>/dev/null</string>
+</dict>
+</plist>
+"""
+        plist_path.write_text(plist_content, encoding="utf-8")
+    else:
+        if plist_path.exists():
+            plist_path.unlink()
+
+
+def _set_autostart_windows(enabled: bool) -> None:
+    startup = _win_startup_lnk_path()
     if enabled:
         desktop = _desktop_lnk_path()
         if desktop.exists():
             shutil.copy2(desktop, startup)
         else:
-            # Fallback: create from scratch using the desktop shortcut creator
             try:
                 project_dir = Path(__file__).resolve().parent.parent
                 create_script = project_dir / "create_shortcut.py"
@@ -177,6 +230,11 @@ class MainWindow(QMainWindow):
         )
         opacity = self._config.get("opacity", 0.92)
         self.setWindowOpacity(float(opacity))
+        # On macOS, frameless windows are opaque by default — we need
+        # WA_TranslucentBackground so the FrostedFrame's rounded outline
+        # is actually see-through. On Windows this causes rendering bugs.
+        if IS_MAC:
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
         root = FrostedFrame(radius=16)
         root.setStyleSheet(styles.WINDOW_QSS)
@@ -203,6 +261,8 @@ class MainWindow(QMainWindow):
             card.collapseChanged.connect(self._refit)
 
         container = QWidget()
+        if IS_MAC:
+            container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         cl = QVBoxLayout(container)
         cl.setContentsMargins(0, 0, 0, 0)
         cl.addWidget(root)
@@ -212,10 +272,15 @@ class MainWindow(QMainWindow):
         self.setFixedWidth(360)  # width fixed; height refits on content change
         self._refit()
 
-        # Restore position.
+        # Restore position — clamp to available screen geometry to avoid
+        # the widget landing off-screen on different display layouts.
         pos = self._config.get("position")
         if isinstance(pos, list) and len(pos) == 2:
-            self.move(int(pos[0]), int(pos[1]))
+            x, y = int(pos[0]), int(pos[1])
+            screen = self.screen().availableGeometry()
+            x = max(screen.left(), min(x, screen.right() - self.width()))
+            y = max(screen.top(), min(y, screen.bottom() - self.height()))
+            self.move(x, y)
 
     def _refit(self) -> None:
         """Recalculate the window height to match current content.

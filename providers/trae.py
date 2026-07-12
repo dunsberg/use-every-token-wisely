@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from .base import BaseProvider, UsageData, WindowStats
@@ -30,15 +31,26 @@ class TraeProvider(BaseProvider):
 
     def _read_plan_tier(self) -> str:
         """Read the cached plan tier from TRAE CN's globalStorage."""
-        storage = (
-            _home()
-            / "AppData"
-            / "Roaming"
-            / "Trae CN"
-            / "User"
-            / "globalStorage"
-            / "storage.json"
-        )
+        if sys.platform == "darwin":
+            storage = (
+                _home()
+                / "Library"
+                / "Application Support"
+                / "Trae CN"
+                / "User"
+                / "globalStorage"
+                / "storage.json"
+            )
+        else:
+            storage = (
+                _home()
+                / "AppData"
+                / "Roaming"
+                / "Trae CN"
+                / "User"
+                / "globalStorage"
+                / "storage.json"
+            )
         if not storage.exists():
             return ""
         try:
