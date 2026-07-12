@@ -93,7 +93,7 @@ class ZCodeProvider(BaseProvider):
             return None
 
     def fetch(self) -> UsageData:
-        data = UsageData(service="Zcode")
+        data = UsageData(service="ZCode")
 
         payload = self._fetch_quota()
         if payload is None:

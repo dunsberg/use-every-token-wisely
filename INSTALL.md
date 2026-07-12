@@ -16,7 +16,7 @@ If you don't have Python:
 - **macOS:** `brew install python` or download from [python.org](https://www.python.org/downloads/)
 
 You also need at least **one** of these AI tools installed locally (so the widget has data to read):
-- [Zcode](https://z.ai)
+- [ZCode](https://z.ai)
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
 - [Codex](https://github.com/openai/codex)
 - [Trae](https://www.trae.cn/)
@@ -114,7 +114,7 @@ It may have spawned off-screen. Delete `config.json` in the project folder and r
 ### A service shows "Cannot reach..." or "No data"
 Make sure the corresponding tool is installed and you've logged in at least once:
 - **Claude**: Run `claude` in terminal to initialize credentials
-- **Zcode**: Open Zcode and log in
+- **ZCode**: Open ZCode and log in
 - **Codex**: Open Codex and start at least one session
 
 ### Claude shows "Cannot reach claude.ai/api/oauth/usage"

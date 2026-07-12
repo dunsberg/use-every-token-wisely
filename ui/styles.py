@@ -16,7 +16,7 @@ from __future__ import annotations
 # --- Service color tokens -----------------------------------------------------
 # (primary, primary_light, border, card_bg, text colors)
 SERVICE_COLORS = {
-    "Zcode": {
+    "ZCode": {
         "primary": "#3b7dd8",
         "primary_light": "#6ba3e8",
         "border": "rgba(59, 125, 216, 0.25)",

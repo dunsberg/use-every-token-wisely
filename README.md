@@ -11,7 +11,7 @@
 
 A translucent, always-on-top desktop widget that monitors your **real-time AI usage quotas** — so you always know how much runway you have left.
 
-Supports **Zcode**, **Claude**, **Codex**, and **Trae**. Works on **Windows** and **macOS**.
+Supports **ZCode**, **Claude**, **Codex**, and **Trae**. Works on **Windows** and **macOS**.
 
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/GUI-PySide6-green)
@@ -41,7 +41,7 @@ That's it. The widget appears on your desktop. Drag it wherever you like.
 - ⏱️ **5-hour & 7-day windows** — each service shows both windows with exact reset dates
 - 🔄 **Auto-refresh every 5 minutes** with a live countdown (turns purple in the last 10 seconds)
 - 🪟 **Frameless, translucent, always-on-top** — a clean outline floating on your desktop
-- 🎨 **Service-themed colors** — Zcode (blue), Claude (orange), Codex (black), Trae (green)
+- 🎨 **Service-themed colors** — ZCode (blue), Claude (orange), Codex (black), Trae (green)
 - 🔴 **Low-quota alert** — percentage text turns red when remaining drops below 10%
 - 📂 **Collapsible cards** — fold/unfold any service from the right-click menu
 - 🚀 **Launch on startup** — optional auto-launch on boot (Windows Startup folder / macOS LaunchAgent)
@@ -78,7 +78,7 @@ This creates a `Use Every Token Wisely.command` file on your Desktop. The first 
 
 | Service | Color | Data Source |
 |---------|-------|-------------|
-| **Zcode** | Blue | BigModel quota API (`open.bigmodel.cn`) — reads API key from `~/.zcode/v2/config.json` |
+| **ZCode** | Blue | BigModel quota API (`open.bigmodel.cn`) — reads API key from `~/.zcode/v2/config.json` |
 | **Claude** | Orange | claude.ai OAuth usage API (`claude.ai/api/oauth/usage`) — reads token from `~/.claude/.credentials.json` |
 | **Codex** | Black | Real `rate_limits` from local session files (`~/.codex/sessions/`) |
 | **Trae** | Green | *Placeholder* — Trae's quota API is protected by ByteDance's `ttnet` signing. Shows plan tier (Free/Pro); full quota data coming when a public API is available |
@@ -87,7 +87,7 @@ All credentials are read from your existing local installs — **no API keys to 
 
 ## How Quotas Are Read
 
-### Zcode (BigModel / GLM)
+### ZCode (BigModel / GLM)
 Reads `~/.zcode/v2/config.json` for the API key, then calls the BigModel monitor API to get real 5-hour (`TOKENS_LIMIT unit=3`) and weekly (`TOKENS_LIMIT unit=6`) utilization percentages with reset timestamps.
 
 ### Claude (claude.ai Pro)
@@ -104,7 +104,7 @@ Reads the cached plan tier from Trae's local Electron storage (`AppData/Roaming/
 - **Left-drag** — move the widget; position is saved automatically
 - **Right-click** — open the context menu:
   - **↻ Refresh now** — force a data refresh
-  - **Service checkboxes** (Zcode / Claude / Codex / Trae) — expand/collapse each card
+  - **Service checkboxes** (ZCode / Claude / Codex / Trae) — expand/collapse each card
   - **🚀 Launch on startup** — toggle boot auto-launch
   - **ⓘ About** — project info
   - **✕ Quit** — exit
@@ -114,7 +114,7 @@ Reads the cached plan tier from Trae's local Electron storage (`AppData/Roaming/
 - Python 3.12+
 - PySide6 (`pip install -r requirements.txt`)
 - **Windows** (tested on Windows 11) or **macOS** (tested on macOS 14+)
-- At least one of: Zcode, Claude Code, Codex, or Trae installed locally
+- At least one of: ZCode, Claude Code, Codex, or Trae installed locally
 
 ## FAQ
 

@@ -34,7 +34,7 @@ class WindowStats:
 class UsageData:
     """Aggregated usage for a single service, consumed by the UI."""
 
-    service: str  # "Zcode" / "Claude" / "Codex"
+    service: str  # "ZCode" / "Claude" / "Codex"
     model: str = ""
     plan_type: str = ""  # e.g. "plus" for Codex
     window_5h: WindowStats = field(default_factory=lambda: WindowStats("5h"))
