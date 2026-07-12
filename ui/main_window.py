@@ -10,6 +10,9 @@ Features:
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QTimer, Qt
@@ -29,13 +32,14 @@ from PySide6.QtWidgets import (
 from providers.base import BaseProvider
 from providers.claude import ClaudeProvider
 from providers.codex import CodexProvider
+from providers.trae import TraeProvider
 from providers.zcode import ZCodeProvider
 from ui import styles
 from ui.usage_card import ServiceCard
 
 REFRESH_INTERVAL_SEC = 5 * 60  # 5 minutes
 COUNTDOWN_TICK_MS = 1000
-PULSE_THRESHOLD = 5  # last N seconds: countdown pulses
+PULSE_THRESHOLD = 10  # last N seconds: countdown pulses
 
 
 class FrostedFrame(QFrame):
@@ -94,6 +98,47 @@ def save_config(cfg: dict) -> None:
         pass
 
 
+def _startup_lnk_path() -> Path:
+    """Path to the shortcut in the Windows Startup folder."""
+    return Path(os.path.expandvars(
+        r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+    )) / "Use Every Token Wisely.lnk"
+
+
+def _desktop_lnk_path() -> Path:
+    return Path.home() / "Desktop" / "Use Every Token Wisely.lnk"
+
+
+def is_autostart_enabled() -> bool:
+    return _startup_lnk_path().exists()
+
+
+def set_autostart(enabled: bool) -> None:
+    """Enable/disable boot launch by creating/removing the Startup shortcut."""
+    startup = _startup_lnk_path()
+    if enabled:
+        desktop = _desktop_lnk_path()
+        if desktop.exists():
+            shutil.copy2(desktop, startup)
+        else:
+            # Fallback: create from scratch using the desktop shortcut creator
+            try:
+                project_dir = Path(__file__).resolve().parent.parent
+                create_script = project_dir / "create_shortcut.py"
+                import subprocess
+                subprocess.run(
+                    [sys.executable, str(create_script)],
+                    capture_output=True, timeout=15,
+                )
+                if desktop.exists():
+                    shutil.copy2(desktop, startup)
+            except Exception:
+                pass
+    else:
+        if startup.exists():
+            startup.unlink()
+
+
 class MainWindow(QMainWindow):
     def __init__(self, config: dict):
         super().__init__()
@@ -109,6 +154,7 @@ class MainWindow(QMainWindow):
             ("ZCODE", ZCodeProvider),
             ("Claude", ClaudeProvider),
             ("Codex", CodexProvider),
+            ("TRAE", TraeProvider),
         ]:
             b = budgets.get(name, {})
             provider = provider_cls(
@@ -139,20 +185,22 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         # Title (centered on its own line).
-        title = QLabel("Use Every Token Wisely")
+        title = QLabel("⚡Use Every Token Wisely⚡")
         title.setObjectName("title")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         # Countdown on its own line, centered, below the title.
-        self.countdown_label = QLabel("↻ --:--")
+        self.countdown_label = QLabel('<span style="color: rgba(0,0,0,0.50);">REFRESH IN: --:--</span>')
         self.countdown_label.setObjectName("countdown")
         self.countdown_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.countdown_label.setTextFormat(Qt.TextFormat.RichText)
         layout.addWidget(self.countdown_label)
 
         # Service cards.
         for _name, _provider, card in self._providers:
             layout.addWidget(card)
+            card.collapseChanged.connect(self._refit)
 
         container = QWidget()
         cl = QVBoxLayout(container)
@@ -160,13 +208,27 @@ class MainWindow(QMainWindow):
         cl.addWidget(root)
         self.setCentralWidget(container)
 
-        self.setFixedSize(360, 0)  # width fixed; height auto from layout
-        self.adjustSize()
+        self._root = root
+        self.setFixedWidth(360)  # width fixed; height refits on content change
+        self._refit()
 
         # Restore position.
         pos = self._config.get("position")
         if isinstance(pos, list) and len(pos) == 2:
             self.move(int(pos[0]), int(pos[1]))
+
+    def _refit(self) -> None:
+        """Recalculate the window height to match current content.
+
+        Called on startup and whenever a card is collapsed/expanded, so the
+        window shrinks/grows instead of leaving empty space.
+        """
+        self.adjustSize()
+        # adjustSize on a QMainWindow can be unreliable with fixed width;
+        # force the height from the central widget's size hint.
+        sh = self.centralWidget().sizeHint()
+        if sh.height() > 0:
+            self.setFixedHeight(sh.height())
 
     # ------------------------------------------------------------------ timers
     def _setup_timers(self) -> None:
@@ -187,28 +249,29 @@ class MainWindow(QMainWindow):
 
     def _update_countdown_label(self) -> None:
         m, s = divmod(self._seconds_to_refresh, 60)
-        self.countdown_label.setText(f"↻ {m:02d}:{s:02d}")
-        # Pulse in the last 5 seconds: toggle a red property for styling +
-        # nudge the label horizontally for a subtle shake.
+        time_str = f"{m:02d}:{s:02d}"
         if self._seconds_to_refresh <= PULSE_THRESHOLD:
-            self.countdown_label.setProperty("pulse", True)
-            # alternate offset every tick for a gentle shake
+            # Only the number turns purple; "REFRESH IN:" stays normal.
+            html = (
+                f'<span style="color: rgba(0,0,0,0.50);">REFRESH IN: </span>'
+                f'<span style="color: #8b3df0; font-weight: bold;">{time_str}</span>'
+            )
+            self.countdown_label.setText(html)
+            # Gentle shake
             offset = 2 if (self._seconds_to_refresh % 2 == 0) else -2
             self.countdown_label.setContentsMargins(10 + offset, 0, 10 - offset, 0)
         else:
-            self.countdown_label.setProperty("pulse", False)
+            html = (
+                f'<span style="color: rgba(0,0,0,0.50);">REFRESH IN: </span>'
+                f'<span style="color: rgba(0,0,0,0.50); font-weight: bold;">{time_str}</span>'
+            )
+            self.countdown_label.setText(html)
             self.countdown_label.setContentsMargins(10, 0, 10, 0)
-        # Refresh stylesheet to apply the pulse property selector.
-        self.countdown_label.setStyleSheet(
-            self.countdown_label.styleSheet()
-        )
-        self.countdown_label.style().unpolish(self.countdown_label)
-        self.countdown_label.style().polish(self.countdown_label)
 
     # ------------------------------------------------------------------ refresh
     def refresh_now(self) -> None:
         self._seconds_to_refresh = REFRESH_INTERVAL_SEC
-        self.countdown_label.setText("↻ refreshing...")
+        self.countdown_label.setText('<span style="color: rgba(0,0,0,0.50);">REFRESH IN: refreshing...</span>')
         QApplication.processEvents()
         for _name, provider, card in self._providers:
             try:
@@ -251,19 +314,26 @@ class MainWindow(QMainWindow):
 
         menu.addSeparator()
 
-        opacity_menu = QMenu("Opacity", menu)
-        for pct in (70, 80, 90, 100):
-            act = QAction(f"{pct}%", opacity_menu)
-            act.triggered.connect(lambda checked=False, p=pct: self._set_opacity(p / 100))
-            opacity_menu.addAction(act)
-        menu.addMenu(opacity_menu)
+        # Agent visibility toggles — checkbox shows expanded (✓) vs collapsed.
+        for name, _provider, card in self._providers:
+            act = QAction(name, menu)
+            act.setCheckable(True)
+            act.setChecked(not card.is_collapsed)
+            act.triggered.connect(
+                lambda checked=False, c=card: c.set_collapsed(not c.is_collapsed)
+            )
+            menu.addAction(act)
 
-        budget_menu = QMenu("Set budgets...", menu)
-        for name in ("ZCODE", "Claude", "Codex"):
-            act = QAction(f"{name}...", budget_menu)
-            act.triggered.connect(lambda checked=False, n=name: self._edit_budget(n))
-            budget_menu.addAction(act)
-        menu.addMenu(budget_menu)
+        menu.addSeparator()
+
+        # Boot launch toggle
+        autostart_action = QAction("🚀 Launch on startup", menu)
+        autostart_action.setCheckable(True)
+        autostart_action.setChecked(is_autostart_enabled())
+        autostart_action.triggered.connect(
+            lambda checked=False: set_autostart(autostart_action.isChecked())
+        )
+        menu.addAction(autostart_action)
 
         menu.addSeparator()
 
@@ -283,47 +353,15 @@ class MainWindow(QMainWindow):
         msg = QMessageBox(self)
         msg.setWindowTitle("About")
         msg.setText(
-            "<h3>Use Every Token Wisely</h3>"
-            "<p>AI usage monitor for ZCODE · Claude · Codex</p>"
-            "<p>Open source under MIT License</p>"
+            "<h3 align='center'>⚡Use Every Token Wisely⚡</h3>"
+            "<p align='center'>Real-time AI usage monitor for</p>"
+            "<p align='center'><b>ZCODE · Claude · Codex · TRAE</b></p>"
+            "<br>"
+            "<p align='center'>github.com/dunsberg/use-every-token-wisely</p>"
+            "<p align='center'><b>MIT License</b></p>"
         )
         msg.setStyleSheet(styles.WINDOW_QSS)
         msg.exec()
-
-    def _set_opacity(self, value: float) -> None:
-        self.setWindowOpacity(value)
-        self._config["opacity"] = value
-        save_config(self._config)
-
-    def _edit_budget(self, service: str) -> None:
-        from PySide6.QtWidgets import QInputDialog
-
-        cur = self._config.setdefault("budgets", {}).get(service, {})
-        cur_5h = cur.get("5h", 0)
-        text, ok = QInputDialog.getText(
-            self,
-            f"{service} budget",
-            f"5-hour budget (tokens).\nCurrent: {cur_5h}\n"
-            "(Note: Codex uses real rate limits; this only affects Claude/ZCODE)",
-            text=str(cur_5h),
-        )
-        if ok and text.strip().isdigit():
-            budgets = self._config.setdefault("budgets", {})
-            svc = budgets.setdefault(service, {})
-            svc["5h"] = int(text.strip())
-            save_config(self._config)
-            self.reload_providers()
-
-    def reload_providers(self) -> None:
-        budgets = self._config.get("budgets", {})
-        new_providers: list[tuple[str, BaseProvider, ServiceCard]] = []
-        for name, provider, card in self._providers:
-            b = budgets.get(name, {})
-            provider.budget_5h = b.get("5h", provider.budget_5h)
-            provider.budget_7d = b.get("7d", provider.budget_7d)
-            new_providers.append((name, provider, card))
-        self._providers = new_providers
-        self.refresh_now()
 
     # ------------------------------------------------------------------ close
     def closeEvent(self, event) -> None:  # type: ignore[override]

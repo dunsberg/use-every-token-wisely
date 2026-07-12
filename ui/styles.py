@@ -1,9 +1,10 @@
 """QSS stylesheets and color tokens for the usage monitor.
 
-Three service color schemes on a frosted-glass base:
+Service color schemes on a frosted-glass base:
   - ZCODE  → blue + white
   - Claude → orange + white
   - Codex  → black + white
+  - TRAE   → deep green + white
 
 Progress bars show REMAINING usage (the unfilled portion), so a full bar means
 plenty of quota left and a near-empty bar means almost used up. No red warning
@@ -34,8 +35,15 @@ SERVICE_COLORS = {
         "primary": "#1a1a1a",
         "primary_light": "#4a4a4a",
         "border": "rgba(26, 26, 26, 0.20)",
-        "card_bg": "rgba(245, 245, 245, 0.45)",
+        "card_bg": "rgba(250, 250, 250, 0.45)",
         "text_dark": "#1a1a1a",
+    },
+    "TRAE": {
+        "primary": "#2e7d4f",
+        "primary_light": "#4ea870",
+        "border": "rgba(46, 125, 79, 0.25)",
+        "card_bg": "rgba(237, 247, 240, 0.45)",
+        "text_dark": "#1a4a2e",
     },
 }
 
@@ -78,6 +86,12 @@ def card_qss(service: str) -> str:
             color: #e84545;
             font-size: 11px;
         }}
+        QLabel#freePlanLabel {{
+            color: #e84545;
+            font-size: 13px;
+            font-style: italic;
+            font-weight: bold;
+        }}
     """
 
 
@@ -89,13 +103,14 @@ def progress_chunk_qss(service: str, remaining_pct: float) -> str:
     """
     c = SERVICE_COLORS[service]
     fill = c["primary"]
+    # Codex uses a dark bar, so its text needs to be light for legibility.
+    text_color = "#f5ebd6" if service == "Codex" else "rgba(0,0,0,0.6)"
     return f"""
         QProgressBar {{
             background-color: rgba(0, 0, 0, 0.08);
             border: none;
             border-radius: 5px;
-            text-align: center;
-            color: rgba(0,0,0,0.6);
+            color: {text_color};
             font-size: 11px;
             font-weight: bold;
             min-height: 18px;
@@ -116,11 +131,11 @@ WINDOW_QSS = """
     }
     QLabel#countdown {
         color: rgba(0, 0, 0, 0.50);
-        font-size: 18px;
+        font-size: 16px;
         font-weight: bold;
     }
     QLabel#countdown[pulse="true"] {
-        color: rgba(232, 69, 69, 0.85);
+        color: #8b3df0;
     }
     QMenu {
         background-color: rgba(255, 255, 255, 0.95);
