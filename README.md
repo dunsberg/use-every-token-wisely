@@ -76,7 +76,7 @@ On first run, a `config.json` is created in the project directory to remember:
 
 ## License
 
-[MIT](LICENSE) © Mingsberg Hui
+[MIT](LICENSE) © dunsberg
 
 ## Contact
 
