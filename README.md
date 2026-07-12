@@ -1,8 +1,6 @@
 # ⚡Use Every Token Wisely⚡
 
-> ## 🔒 No Third-Party Backend · No Telemetry · Credentials Stay on Your Device
->
-> This widget runs **entirely on your computer**. It does **not** route through any
+> 🔒 This widget runs **entirely on your computer**. It does **not** route through any
 > third-party server, does **not** collect telemetry or analytics, and your API keys and
 > tokens **never leave your machine** — they are read from each tool's own local config
 > files and used only to authenticate against that provider's **official endpoints**.
