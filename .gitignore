@@ -9,8 +9,9 @@ build/
 # Config (contains local window position — machine-specific)
 config.json
 
-# Screenshots / temp
+# Screenshots / temp (but keep docs/ images)
 *.png
+!docs/*.png
 screenshot*.py
 crop.py
 test_*.py

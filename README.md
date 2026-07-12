@@ -10,6 +10,21 @@ Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**. Works on **Windows** an
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![macOS](https://img.shields.io/badge/platform-macOS-silver)
 
+![Screenshot](docs/screenshot.png)
+
+## 30-Second Start
+
+```bash
+git clone https://github.com/dunsberg/use-every-token-wisely.git
+cd use-every-token-wisely
+pip install -r requirements.txt    # pip3 on Mac
+python main.py                     # python3 on Mac
+```
+
+That's it. The widget appears on your desktop. Drag it wherever you like.
+
+> 📖 **New here?** See the **[detailed installation guide](INSTALL.md)** for step-by-step instructions, desktop shortcuts, and boot auto-launch.
+
 ## Features
 
 - 📊 **Real quota data** — reads actual rate-limit percentages from each platform, not estimates
@@ -90,6 +105,44 @@ Reads the cached plan tier from TRAE's local Electron storage (`AppData/Roaming/
 - PySide6 (`pip install -r requirements.txt`)
 - **Windows** (tested on Windows 11) or **macOS** (tested on macOS 14+)
 - At least one of: ZCODE, Claude Code, Codex, or TRAE installed locally
+
+## FAQ
+
+<details>
+<summary><b>The widget doesn't appear on screen</b></summary>
+
+It may have spawned off-screen (common after changing monitors). Delete `config.json` in the project folder and restart — this resets the window position.
+</details>
+
+<details>
+<summary><b>A service shows "No data" or "Cannot reach..."</b></summary>
+
+Make sure the corresponding tool is installed and you've logged in at least once. The widget reads credentials from each tool's local config — if you haven't used the tool yet, there's nothing to read.
+</details>
+
+<details>
+<summary><b>Claude keeps showing an error</b></summary>
+
+Cloudflare occasionally blocks the usage API request. The widget retries automatically with backoff. If it persists for more than a few minutes, right-click → **Refresh now**. Make sure your Claude Code is updated and you're logged in.
+</details>
+
+<details>
+<summary><b>TRAE shows "Free Plan N/A"</b></summary>
+
+This is expected. TRAE's live quota API is protected by ByteDance's proprietary `ttnet` signing layer, which can't be replicated in a standalone Python script. The widget shows your cached plan tier instead. Paid-plan quota support is a work in progress.
+</details>
+
+<details>
+<summary><b>The progress bars show different numbers than the tool's own UI</b></summary>
+
+The widget refreshes every 5 minutes. The numbers may lag behind what you see in each tool's live UI. Right-click → **Refresh now** for an immediate update.
+</details>
+
+<details>
+<summary><b>How do I uninstall?</b></summary>
+
+If you enabled **Launch on startup**, right-click the widget and uncheck it first. Then just delete the project folder. On Windows, also delete the desktop shortcut if you created one.
+</details>
 
 ## License
 
