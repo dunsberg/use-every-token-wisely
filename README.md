@@ -1,5 +1,12 @@
 # ⚡Use Every Token Wisely⚡
 
+> ## 🔒 100% Local · No API Calls · No Data Collection · Your Keys Never Leave Your Machine
+> 
+> This widget runs **entirely on your computer**. It does **not** call any third-party API,
+> does **not** collect or transmit any data, and does **not** touch your API keys — they are
+> read from each tool's own local config and used only to check your quota on the
+> **official endpoints** those tools already use. No telemetry. No tracking. Nothing phones home.
+
 A translucent, always-on-top desktop widget that monitors your **real-time AI usage quotas** — so you always know how much runway you have left.
 
 Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**. Works on **Windows** and **macOS**.
@@ -9,19 +16,9 @@ Supports **ZCODE**, **Claude**, **Codex**, and **TRAE**. Works on **Windows** an
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow)
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![macOS](https://img.shields.io/badge/platform-macOS-silver)
+![100% Local](https://img.shields.io/badge/privacy-100%25_local-brightgreen)
 
 ![Screenshot](docs/screenshot.png)
-
-## 🔒 Privacy — 100% Local, Zero Data Collection
-
-This widget is **completely local**. It runs entirely on your machine.
-
-- ✅ **No third-party API calls** — the widget never sends your data to any external service
-- ✅ **No data collection or transmission** — your usage data stays on your computer, period
-- ✅ **Your keys never leave your machine** — API keys and tokens are read from each tool's own local config files and used only to authenticate against the **official quota endpoints** that those tools already use themselves
-- ✅ **No telemetry, no analytics, no tracking** — not a single line of code phones home
-
-The only network requests the widget makes are to the **same official endpoints** that ZCODE, Claude, and Codex already call internally to check your quota — authenticated with credentials that are **already stored locally** on your machine by those tools. The widget does not intercept, store, or forward any of your conversations, code, or personal data.
 
 ## 30-Second Start
 
