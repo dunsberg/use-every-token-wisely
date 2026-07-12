@@ -21,6 +21,9 @@ def main() -> int:
     config = load_config()
     window = MainWindow(config)
     window.show()
+    # Refit after show() so all child widgets have real geometry.
+    from PySide6.QtCore import QTimer
+    QTimer.singleShot(50, window._refit)
 
     return app.exec()
 

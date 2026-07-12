@@ -270,7 +270,8 @@ class MainWindow(QMainWindow):
 
         self._root = root
         self.setFixedWidth(360)  # width fixed; height refits on content change
-        self._refit()
+        # Initial refit is deferred to main.py after show(), so widgets have
+        # real geometry before we measure them.
 
         # Restore position — clamp to available screen geometry to avoid
         # the widget landing off-screen on different display layouts.
@@ -285,15 +286,36 @@ class MainWindow(QMainWindow):
     def _refit(self) -> None:
         """Recalculate the window height to match current content.
 
-        Called on startup and whenever a card is collapsed/expanded, so the
-        window shrinks/grows instead of leaving empty space.
+        We measure the root frame's layout by iterating visible children and
+        summing their heights + spacing, which is more reliable than sizeHint()
+        (which caches stale values after visibility changes).
         """
-        self.adjustSize()
-        # adjustSize on a QMainWindow can be unreliable with fixed width;
-        # force the height from the central widget's size hint.
-        sh = self.centralWidget().sizeHint()
-        if sh.height() > 0:
-            self.setFixedHeight(sh.height())
+        root = getattr(self, "_root", None)
+        if root is None:
+            return
+        layout = root.layout()
+        if layout is None:
+            return
+
+        margins = layout.contentsMargins()
+        spacing = layout.spacing()
+        total_h = margins.top() + margins.bottom()
+        visible_count = 0
+        for i in range(layout.count()):
+            item = layout.itemAt(i)
+            w = item.widget()
+            if w is not None and w.isVisible():
+                total_h += w.sizeHint().height()
+                visible_count += 1
+            elif item.layout() is not None:
+                # Could be a sub-layout — estimate from minimumSize.
+                total_h += item.sizeHint().height()
+                visible_count += 1
+        if visible_count > 1:
+            total_h += spacing * (visible_count - 1)
+
+        if total_h > 0:
+            self.setFixedHeight(total_h)
 
     # ------------------------------------------------------------------ timers
     def _setup_timers(self) -> None:
@@ -344,6 +366,7 @@ class MainWindow(QMainWindow):
                     service=_name, available=False, error=f"Error: {exc}"
                 )
             card.update_data(data)
+        self._refit()
         self._update_countdown_label()
 
     # ------------------------------------------------------------------ drag
