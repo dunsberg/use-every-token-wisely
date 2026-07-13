@@ -18,9 +18,14 @@ weekly limit when present.
 
 from __future__ import annotations
 
+import base64
+import ctypes
+import ctypes.wintypes
 import http.cookiejar
 import json
 import os
+import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -68,6 +73,125 @@ class ClaudeProvider(BaseProvider):
     REFRESH_URL = "https://platform.claude.com/v1/oauth/token"
     CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 
+    # ------------------------------------------------------------------
+    # Tier 1: Claude Desktop encrypted cache (Windows only, most reliable)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _dpapi_unprotect(data: bytes) -> bytes | None:
+        """Decrypt data using Windows DPAPI CryptUnprotectData."""
+        if sys.platform != "win32":
+            return None
+        try:
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [
+                    ("cbData", ctypes.wintypes.DWORD),
+                    ("pbData", ctypes.POINTER(ctypes.c_char)),
+                ]
+
+            blob_in = DATA_BLOB(
+                len(data),
+                ctypes.cast(
+                    ctypes.create_string_buffer(data, len(data)),
+                    ctypes.POINTER(ctypes.c_char),
+                ),
+            )
+            blob_out = DATA_BLOB()
+            if not ctypes.windll.crypt32.CryptUnprotectData(
+                ctypes.byref(blob_in), None, None, None, None, 0,
+                ctypes.byref(blob_out),
+            ):
+                return None
+            result = ctypes.string_at(blob_out.pbData, blob_out.cbData)
+            ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+            return result
+        except Exception:
+            return None
+
+    def _load_token_from_desktop_cache(self) -> str | None:
+        """Decrypt Claude Desktop's Chromium os_crypt token cache (Windows).
+
+        Claude Desktop stores long-lived OAuth tokens (weeks/months) in its
+        config.json, encrypted with AES-256-GCM. The AES key is itself
+        encrypted with Windows DPAPI and stored in Local State. This method
+        decrypts both layers entirely locally — no network calls, no rate
+        limits. Falls back gracefully on macOS or if files are missing.
+        """
+        if sys.platform != "win32":
+            return None
+        try:
+            appdata = Path(os.environ.get("APPDATA", "")) / "Claude"
+            local_state_path = appdata / "Local State"
+            config_path = appdata / "config.json"
+            if not local_state_path.exists() or not config_path.exists():
+                return None
+
+            # 1. Read Local State → os_crypt.encrypted_key → DPAPI decrypt.
+            local_state = json.loads(
+                local_state_path.read_text(encoding="utf-8")
+            )
+            enc_key_b64 = (
+                local_state.get("os_crypt", {}).get("encrypted_key")
+            )
+            if not enc_key_b64:
+                return None
+            enc_key = base64.b64decode(enc_key_b64)
+            if not enc_key.startswith(b"DPAPI"):
+                return None
+            aes_key = self._dpapi_unprotect(enc_key[5:])
+            if not aes_key or len(aes_key) != 32:
+                return None
+
+            # 2. Read config.json → decrypt oauth:tokenCacheV2 (or V1).
+            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+            aesgcm = AESGCM(aes_key)
+            now_ms = int(time.time() * 1000)
+
+            for cache_key in ("oauth:tokenCacheV2", "oauth:tokenCache"):
+                blob_b64 = cfg.get(cache_key)
+                if not blob_b64:
+                    continue
+                blob = base64.b64decode(blob_b64)
+                if not blob.startswith(b"v10"):
+                    continue
+                nonce = blob[3:15]
+                ciphertext_and_tag = blob[15:]
+                try:
+                    plaintext = aesgcm.decrypt(
+                        nonce, ciphertext_and_tag, None
+                    )
+                except Exception:
+                    continue
+                data = json.loads(plaintext.decode("utf-8"))
+                # data is keyed by "clientId:orgId:apiUrl:scopes"
+                if isinstance(data, dict):
+                    for _key, val in data.items():
+                        if not isinstance(val, dict):
+                            continue
+                        token = val.get("token")
+                        expires_at = val.get("expiresAt", 0)
+                        # Prefer non-expired tokens with inference scope.
+                        scopes = _key.split(":")[-1] if ":" in _key else ""
+                        if token and ("inference" in scopes or "user:" in scopes):
+                            if not expires_at or now_ms < expires_at:
+                                return token
+                    # Fallback: any non-expired token.
+                    for _key, val in data.items():
+                        if isinstance(val, dict):
+                            token = val.get("token")
+                            expires_at = val.get("expiresAt", 0)
+                            if token and (not expires_at or now_ms < expires_at):
+                                return token
+        except Exception:
+            return None
+        return None
+
+    # ------------------------------------------------------------------
+    # Tier 2: ~/.claude/.credentials.json
+    # ------------------------------------------------------------------
+
     def _load_credentials(self) -> dict | None:
         """Load the full credentials dict from disk."""
         creds_path = _home() / ".claude" / ".credentials.json"
@@ -88,39 +212,78 @@ class ClaudeProvider(BaseProvider):
         except OSError:
             pass
 
-    def _load_token(self) -> str | None:
-        """Load access token, auto-refreshing if expired."""
-        creds = self._load_credentials()
-        if not creds:
+    # ------------------------------------------------------------------
+    # Tier 3: Refresh token via platform.claude.com (last resort)
+    # ------------------------------------------------------------------
+
+    def _refresh_token(self, refresh_token: str) -> dict | None:
+        """Exchange a refresh token for a new access token."""
+        from urllib.parse import urlencode
+
+        data = urlencode({
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": self.CLIENT_ID,
+        }).encode("utf-8")
+
+        req = urllib.request.Request(self.REFRESH_URL, data=data, method="POST")
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header("User-Agent", "claude-code/2.1.207")
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
             return None
-        oauth = creds.get("claudeAiOauth", {})
-        access_token = oauth.get("accessToken")
-        expires_at = oauth.get("expiresAt", 0)
-        refresh_token = oauth.get("refreshToken")
-        refresh_expires_at = oauth.get("refreshTokenExpiresAt", 0)
 
-        # Check if access token is still valid (with 60s margin).
-        import time
+    # ------------------------------------------------------------------
+    # Orchestrator: try all three tiers in priority order
+    # ------------------------------------------------------------------
+
+    def _load_token(self) -> str | None:
+        """Get a valid access token using a 3-tier fallback strategy.
+
+        Tier 1: Claude Desktop's encrypted cache (long-lived, no network).
+        Tier 2: ~/.claude/.credentials.json (if not expired).
+        Tier 3: Refresh token via platform.claude.com (rate-limited).
+        """
         now_ms = int(time.time() * 1000)
-        if access_token and now_ms < (expires_at - 60_000):
-            return access_token
 
-        # Access token expired — try to refresh if refresh token is valid.
-        if not refresh_token or now_ms >= refresh_expires_at:
-            return access_token  # can't refresh, return stale token
+        # --- Tier 1: Desktop cache ---
+        token = self._load_token_from_desktop_cache()
+        if token:
+            return token
 
-        new_token = self._refresh_token(refresh_token)
-        if new_token:
-            # Persist the refreshed token back to the credentials file.
-            oauth["accessToken"] = new_token["access_token"]
-            oauth["expiresAt"] = now_ms + new_token.get("expires_in", 3600) * 1000
-            if "refresh_token" in new_token:
-                oauth["refreshToken"] = new_token["refresh_token"]
-            creds["claudeAiOauth"] = oauth
-            self._save_credentials(creds)
-            return new_token["access_token"]
+        # --- Tier 2: CLI credentials file ---
+        creds = self._load_credentials()
+        if creds:
+            oauth = creds.get("claudeAiOauth", {})
+            access_token = oauth.get("accessToken")
+            expires_at = oauth.get("expiresAt", 0)
+            if access_token and now_ms < (expires_at - 60_000):
+                return access_token
 
-        return access_token  # refresh failed, return stale token
+            # --- Tier 3: Refresh ---
+            refresh_token = oauth.get("refreshToken")
+            refresh_expires_at = oauth.get("refreshTokenExpiresAt", 0)
+            if refresh_token and now_ms < refresh_expires_at:
+                new_token = self._refresh_token(refresh_token)
+                if new_token and "access_token" in new_token:
+                    oauth["accessToken"] = new_token["access_token"]
+                    oauth["expiresAt"] = (
+                        now_ms + new_token.get("expires_in", 3600) * 1000
+                    )
+                    if "refresh_token" in new_token:
+                        oauth["refreshToken"] = new_token["refresh_token"]
+                    creds["claudeAiOauth"] = oauth
+                    self._save_credentials(creds)
+                    return new_token["access_token"]
+
+            # Return stale token as last resort (better than nothing).
+            if access_token:
+                return access_token
+
+        return None
 
     def _refresh_token(self, refresh_token: str) -> dict | None:
         """Exchange a refresh token for a new access token."""
