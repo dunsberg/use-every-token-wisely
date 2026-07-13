@@ -256,15 +256,23 @@ class ServiceCard(QFrame):
 
         self.error_label.setVisible(False)
 
-        # --- 5h window ---
+        # --- 5h window (hide if no data for this window) ---
         w5 = data.window_5h
-        self._set_bar(self._bar_5h, w5.percent, "")
-        self._detail_5h.setText(self._detail_text(w5))
+        if w5.reset_at is None and not w5.is_real_limit and w5.percent == 0:
+            self._bar_5h._row_widget.setVisible(False)
+        else:
+            self._set_bar(self._bar_5h, w5.percent, "")
+            self._detail_5h.setText(self._detail_text(w5))
+            self._bar_5h._row_widget.setVisible(True)
 
-        # --- 7d window ---
+        # --- 7d window (hide if no data for this window) ---
         w7 = data.window_7d
-        self._set_bar(self._bar_7d, w7.percent, "")
-        self._detail_7d.setText(self._detail_text(w7))
+        if w7.reset_at is None and not w7.is_real_limit and w7.percent == 0:
+            self._bar_7d._row_widget.setVisible(False)
+        else:
+            self._set_bar(self._bar_7d, w7.percent, "")
+            self._detail_7d.setText(self._detail_text(w7))
+            self._bar_7d._row_widget.setVisible(True)
 
         # --- Model-specific window (e.g. Fable 5) ---
         if data.window_model is not None:

@@ -104,48 +104,44 @@ class CodexProvider(BaseProvider):
         data.plan_type = payload.get("rate_limits", {}).get("plan_type", "")
 
         rate_limits = payload.get("rate_limits") or {}
-        primary = rate_limits.get("primary") or {}
-        secondary = rate_limits.get("secondary") or {}
 
-        # Primary = 5-hour window.
-        used_pct_5h = primary.get("used_percent")
-        reset_5h = self._unix_to_dt(primary.get("resets_at"))
-        if used_pct_5h is not None:
-            data.window_5h = WindowStats(
-                label="5h",
-                percent=float(used_pct_5h),
+        # Codex rate_limits may have primary and/or secondary windows.
+        # Each has window_minutes: 300 = 5h, 10080 = 7d. The structure has
+        # changed over time, so we classify by window_minutes, not by name.
+        for window_key in ("primary", "secondary"):
+            win = rate_limits.get(window_key) or {}
+            pct = win.get("used_percent")
+            if pct is None:
+                continue
+            mins = win.get("window_minutes", 0)
+            reset = self._unix_to_dt(win.get("resets_at"))
+            ws = WindowStats(
+                label="5h" if mins <= 400 else "7d",
+                percent=float(pct),
                 budget=100,
-                used=int(float(used_pct_5h)),  # store as 0-100 for display
-                reset_at=reset_5h,
+                used=int(float(pct)),
+                reset_at=reset,
                 is_real_limit=True,
             )
+            if mins <= 400:
+                data.window_5h = ws
+            else:
+                data.window_7d = ws
 
-        # Secondary = 7-day window.
-        used_pct_7d = secondary.get("used_percent")
-        reset_7d = self._unix_to_dt(secondary.get("resets_at"))
-        if used_pct_7d is not None:
-            data.window_7d = WindowStats(
-                label="7d",
-                percent=float(used_pct_7d),
-                budget=100,
-                used=int(float(used_pct_7d)),
-                reset_at=reset_7d,
-                is_real_limit=True,
-            )
-
-        # Fallback: if rate_limits missing but token counts exist, show raw tokens.
-        if used_pct_5h is None and used_pct_7d is None:
+        # Fallback: if no rate_limit windows found, show raw token counts.
+        if data.window_5h.percent == 0 and data.window_7d.percent == 0:
             info = payload.get("info") or {}
             ttu = info.get("total_token_usage") or {}
             total_tokens = ttu.get("total_tokens", 0)
-            data.window_5h = WindowStats(
-                label="5h",
-                used=total_tokens,
-                budget=self.budget_5h,
-                percent=round(total_tokens / self.budget_5h * 100, 1)
-                if self.budget_5h
-                else 0.0,
-            )
+            if total_tokens > 0:
+                data.window_5h = WindowStats(
+                    label="5h",
+                    used=total_tokens,
+                    budget=self.budget_5h,
+                    percent=round(total_tokens / self.budget_5h * 100, 1)
+                    if self.budget_5h
+                    else 0.0,
+                )
 
         # --- Credits balance (USD prepaid credits, if any) ---
         credits = rate_limits.get("credits")
