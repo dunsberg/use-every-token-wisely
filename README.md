@@ -1,11 +1,17 @@
 # ⚡Use Every Token Wisely⚡
 
 > 🔒 This widget runs **entirely on your computer**. It does **not** route through any
-> third-party server, does **not** collect telemetry or analytics, and your API keys and
-> tokens **never leave your machine** — they are read from each tool's own local config
-> files and used only to authenticate against that provider's **official endpoints**.
+> third-party server, does **not** collect telemetry or analytics, and your credentials
+> **never leave your machine**.
 >
-> Connects directly to official provider endpoints only when required to retrieve quota information.
+> - **Credentials are read locally** from each tool's own config files — the same files
+>   those tools already store on your disk.
+> - On Windows, Claude's encrypted token cache is **decrypted locally** using the standard
+>   Chromium `os_crypt` mechanism (Windows DPAPI + AES-256-GCM). No external service is
+>   involved; the decryption key never leaves your user profile.
+> - Connects directly to official provider endpoints **only** to retrieve quota
+>   information, using credentials that are **already stored locally** by those tools.
+> - No telemetry, no analytics, no tracking. Nothing phones home.
 
 A translucent, always-on-top desktop widget that monitors your **real-time AI usage quotas** — so you always know how much runway you have left.
 
@@ -89,7 +95,7 @@ All credentials are read from your existing local installs — **no API keys to 
 Reads `~/.zcode/v2/config.json` for the API key, then calls the BigModel monitor API to get real 5-hour (`TOKENS_LIMIT unit=3`) and weekly (`TOKENS_LIMIT unit=6`) utilization percentages with reset timestamps.
 
 ### Claude (claude.ai Pro)
-Reads `~/.claude/.credentials.json` for the OAuth access token, then calls `claude.ai/api/oauth/usage` to get real session (5h) and weekly (7d) utilization, plus per-model limits (e.g. Fable). Uses a persistent cookie jar to pass Cloudflare's bot detection.
+Reads the OAuth access token using a 3-tier fallback: (1) on Windows, decrypts Claude Desktop's encrypted token cache (`config.json`) locally via Chromium `os_crypt` (DPAPI + AES-256-GCM) — no network needed; (2) reads `~/.claude/.credentials.json` if the token hasn't expired; (3) refreshes via `platform.claude.com` as a last resort. Then calls `claude.ai/api/oauth/usage` to get real session (5h) and weekly (7d) utilization. Uses a persistent cookie jar to pass Cloudflare's bot detection.
 
 ### Codex (OpenAI)
 Parses the most recent session file in `~/.codex/sessions/` for the last `token_count` event, which contains real `rate_limits` with `used_percent` and `resets_at` for both 5-hour (`primary`) and 7-day (`secondary`) windows.
