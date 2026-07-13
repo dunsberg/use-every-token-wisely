@@ -392,13 +392,17 @@ class ClaudeProvider(BaseProvider):
             pct7 = weekly.get("percent", 0)
             reset7 = weekly.get("resets_at")
 
-        # Check if there's a model-scoped weekly limit (e.g. Fable) that is
-        # higher than the all-models limit — if so, the all-models window is the
-        # binding one, but we note the Fable-specific figure in plan_type.
-        fable_pct, _ = self._pick_model(limits, "Fable")
-        model_note = ""
+        # --- Fable 5 model-specific weekly window (third progress bar) ---
+        fable_pct, fable_reset = self._pick_model(limits, "Fable")
         if fable_pct >= 0:
-            model_note = f"+Fable {fable_pct:.0f}%"
+            data.window_model = WindowStats(
+                label="F5",
+                percent=float(fable_pct),
+                budget=100,
+                used=int(round(float(fable_pct))),
+                reset_at=_parse_iso(fable_reset),
+                is_real_limit=True,
+            )
 
         data.window_7d = WindowStats(
             label="7d",
@@ -410,9 +414,27 @@ class ClaudeProvider(BaseProvider):
         )
 
         data.model = "claude-fable-5"
-        sub = (payload.get("extra_usage") or {}).get("disabled_reason", "")
-        data.plan_type = "Pro" + (f" {model_note}" if model_note else "")
-        if sub == "out_of_credits":
-            data.plan_type += " · no credits"
+        data.plan_type = "Pro"
+
+        # --- Credits balance ---
+        spend = payload.get("spend") or {}
+        balance = spend.get("balance")
+        if balance is not None:
+            # balance has amount_minor + exponent (cents with decimal places)
+            amt = balance.get("amount_minor", 0)
+            exp = balance.get("exponent", 2)
+            data.credits = f"${amt / (10 ** exp):.2f}"
+        else:
+            # balance is null when out of credits
+            extra = payload.get("extra_usage") or {}
+            if extra.get("disabled_reason") == "out_of_credits":
+                data.credits = "$0.00"
+            elif extra.get("is_enabled"):
+                # Compute from limit - used
+                limit = extra.get("monthly_limit", 0)
+                used = extra.get("used_credits", 0)
+                exp = (spend.get("limit") or {}).get("exponent", 2)
+                remaining = float(limit) - float(used)
+                data.credits = f"${remaining / (10 ** exp):.2f}"
 
         return data

@@ -39,6 +39,8 @@ class UsageData:
     plan_type: str = ""  # e.g. "plus" for Codex
     window_5h: WindowStats = field(default_factory=lambda: WindowStats("5h"))
     window_7d: WindowStats = field(default_factory=lambda: WindowStats("7d"))
+    window_model: WindowStats | None = None  # model-specific window (e.g. Fable 5)
+    credits: str = ""  # balance text like "$0.00", empty = don't show
     available: bool = True  # False if no data could be read
     error: str = ""
 

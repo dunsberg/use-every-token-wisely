@@ -92,6 +92,10 @@ def card_qss(service: str) -> str:
             font-style: italic;
             font-weight: bold;
         }}
+        QLabel#creditsLabel {{
+            color: rgba(0, 0, 0, 0.40);
+            font-size: 11px;
+        }}
     """
 
 

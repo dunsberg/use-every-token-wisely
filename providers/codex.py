@@ -147,4 +147,12 @@ class CodexProvider(BaseProvider):
                 else 0.0,
             )
 
+        # --- Credits balance (USD prepaid credits, if any) ---
+        credits = rate_limits.get("credits")
+        if credits is not None:
+            try:
+                data.credits = f"${float(credits):.2f}"
+            except (TypeError, ValueError):
+                pass
+
         return data

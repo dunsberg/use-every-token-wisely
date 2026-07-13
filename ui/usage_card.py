@@ -150,6 +150,9 @@ class ServiceCard(QFrame):
         self._bar_5h, self._detail_5h = self._make_window_row("5h", body_layout)
         # --- 7-day window ---
         self._bar_7d, self._detail_7d = self._make_window_row("7d", body_layout)
+        # --- Model-specific window (e.g. Fable 5) — hidden by default ---
+        self._bar_model, self._detail_model = self._make_window_row("F5", body_layout)
+        self._bar_model._row_widget.setVisible(False)
 
         # --- Free plan label (replaces bars when no quota) ---
         self.free_label = QLabel("Free Plan N/A")
@@ -157,6 +160,13 @@ class ServiceCard(QFrame):
         self.free_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.free_label.setVisible(False)
         body_layout.addWidget(self.free_label)
+
+        # --- Credits balance (bottom of card) ---
+        self.credits_label = QLabel("")
+        self.credits_label.setObjectName("creditsLabel")
+        self.credits_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.credits_label.setVisible(False)
+        body_layout.addWidget(self.credits_label)
 
         # --- Error / status line ---
         self.error_label = QLabel("")
@@ -222,6 +232,8 @@ class ServiceCard(QFrame):
         if is_free and not self._collapsed:
             self._bar_5h._row_widget.setVisible(False)
             self._bar_7d._row_widget.setVisible(False)
+            self._bar_model._row_widget.setVisible(False)
+            self.credits_label.setVisible(False)
             self.free_label.setVisible(True)
             self.error_label.setVisible(False)
             return
@@ -238,6 +250,8 @@ class ServiceCard(QFrame):
             self._set_bar(self._bar_7d, 0.0, "")
             self._detail_5h.setText("")
             self._detail_7d.setText("")
+            self._bar_model._row_widget.setVisible(False)
+            self.credits_label.setVisible(False)
             return
 
         self.error_label.setVisible(False)
@@ -251,6 +265,22 @@ class ServiceCard(QFrame):
         w7 = data.window_7d
         self._set_bar(self._bar_7d, w7.percent, "")
         self._detail_7d.setText(self._detail_text(w7))
+
+        # --- Model-specific window (e.g. Fable 5) ---
+        if data.window_model is not None:
+            wm = data.window_model
+            self._set_bar(self._bar_model, wm.percent, "")
+            self._detail_model.setText(self._detail_text(wm))
+            self._bar_model._row_widget.setVisible(True)
+        else:
+            self._bar_model._row_widget.setVisible(False)
+
+        # --- Credits balance ---
+        if data.credits:
+            self.credits_label.setText(f"Credits: {data.credits}")
+            self.credits_label.setVisible(True)
+        else:
+            self.credits_label.setVisible(False)
 
     def _detail_text(self, w) -> str:
         if w.is_real_limit:
