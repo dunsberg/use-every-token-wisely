@@ -311,14 +311,11 @@ class ClaudeProvider(BaseProvider):
             return None
         import time
 
-        # claude.ai is fronted by Cloudflare. The exact header combination that
-        # passes is: Authorization + Accept + Accept-Language + User-Agent set
-        # to "claude-code/...". Do NOT send Origin/Referer — that turns the
-        # request into a CORS request and triggers a 401 demanding
-        # 'anthropic-dangerous-direct-browser-access'. The module-level cookie
-        # jar persists __cf_bm so that after the first 403 challenge, subsequent
-        # requests succeed reliably.
-        for attempt in range(3):
+        # claude.ai is fronted by Cloudflare. The __cf_bm cookie expires
+        # after ~30 min, so long-running widgets will hit 403 challenges
+        # repeatedly. On 403, clear the cookie jar and retry — the first
+        # request gets challenged (sets a new cookie), the second succeeds.
+        for attempt in range(4):
             req = urllib.request.Request(USAGE_URL)
             req.add_header("Authorization", f"Bearer {token}")
             req.add_header("Accept", "application/json")
@@ -328,11 +325,32 @@ class ClaudeProvider(BaseProvider):
                 with _OPENER.open(req, timeout=15) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
-                if e.code == 403 and attempt < 2:
+                if e.code == 403 and attempt < 3:
+                    # Cloudflare challenge — clear stale cookies and retry.
+                    _COOKIE_JAR.clear()
+                    # Drain the error body so the connection can be reused.
+                    try:
+                        e.read()
+                    except Exception:
+                        pass
                     time.sleep(1.5 * (attempt + 1))
+                    continue
+                if e.code == 401 and attempt < 3:
+                    # Token might be stale — reload and retry.
+                    token = self._load_token()
+                    if not token:
+                        return None
+                    try:
+                        e.read()
+                    except Exception:
+                        pass
+                    time.sleep(1)
                     continue
                 return None
             except (urllib.error.URLError, OSError, ValueError):
+                if attempt < 3:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
                 return None
         return None
 
