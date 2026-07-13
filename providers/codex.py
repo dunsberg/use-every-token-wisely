@@ -1,23 +1,34 @@
-"""Codex (OpenAI) usage provider — reads real rate-limit data from local session files.
+"""Codex (OpenAI) usage provider — reads real rate-limit data from ChatGPT API.
 
-Codex session files live at ``~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl``. Each
-line is ``{"timestamp": ..., "type": ..., "payload": {...}}``. Token usage lives
-only on lines where ``type == "event_msg"`` and ``payload.type == "token_count"``,
-which expose real ``rate_limits`` with ``used_percent`` and ``resets_at`` (Unix
-seconds) for both a 5-hour (``primary``) and a 7-day (``secondary``) window.
+Calls ``https://chatgpt.com/backend-api/codex/usage`` with the ChatGPT OAuth
+access token stored in ``~/.codex/auth.json``. Returns real rate-limit
+percentages and reset timestamps for all available windows, plus credits
+balance and reset credits count.
 
-We only read the most-recently-modified session file and grab its last
-``token_count`` event — no need to scan the full 833 MB history.
+Falls back to reading the latest local session file if the API is unreachable.
 """
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import os
+import sys
+import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .base import BaseProvider, UsageData, WindowStats, parse_iso_timestamp
+from .base import BaseProvider, UsageData, WindowStats
+
+USAGE_URL = "https://chatgpt.com/backend-api/codex/usage"
+
+# Module-level cookie jar for Cloudflare bypass (same pattern as Claude).
+_COOKIE_JAR = http.cookiejar.CookieJar()
+_OPENER = urllib.request.build_opener(
+    urllib.request.HTTPCookieProcessor(_COOKIE_JAR)
+)
 
 
 def _home() -> Path:
@@ -25,56 +36,49 @@ def _home() -> Path:
 
 
 class CodexProvider(BaseProvider):
-    """Reads Codex real rate-limit percentages from the latest session file."""
+    """Reads Codex real rate-limit percentages via the ChatGPT API."""
 
-    default_budget_5h = 1  # Codex reports a real percentage; budget is nominal.
+    default_budget_5h = 1
     default_budget_7d = 1
 
-    def _latest_session_file(self) -> Path | None:
-        sessions_dir = _home() / ".codex" / "sessions"
-        if not sessions_dir.exists():
-            return None
-        candidates = sorted(
-            sessions_dir.rglob("rollout-*.jsonl"),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
-        return candidates[0] if candidates else None
-
-    def _last_token_count(self, path: Path) -> tuple[dict, dict] | None:
-        """Return (last_token_count_line, last_turn_context_line) or None.
-
-        We stream the file once, keeping references to the last matching lines.
-        """
-        last_tc: dict | None = None
-        last_ctx_model = ""
+    def _load_auth(self) -> tuple[str | None, dict]:
+        """Return (access_token, full_auth_dict) from ~/.codex/auth.json."""
+        auth_path = _home() / ".codex" / "auth.json"
+        if not auth_path.exists():
+            return None, {}
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        obj = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    ltype = obj.get("type")
-                    payload = obj.get("payload") or {}
-                    if ltype == "turn_context":
-                        model = payload.get("model")
-                        if model:
-                            last_ctx_model = model
-                    elif (
-                        ltype == "event_msg"
-                        and payload.get("type") == "token_count"
-                    ):
-                        last_tc = obj
-        except OSError:
+            auth = json.loads(auth_path.read_text(encoding="utf-8"))
+            token = (auth.get("tokens") or {}).get("access_token")
+            return token, auth
+        except (json.JSONDecodeError, OSError):
+            return None, {}
+
+    def _fetch_usage_api(self) -> dict | None:
+        """Call the ChatGPT codex/usage API."""
+        token, _ = self._load_auth()
+        if not token:
             return None
 
-        if last_tc is None:
-            return None
-        return last_tc, {"model": last_ctx_model}
+        for attempt in range(3):
+            req = urllib.request.Request(USAGE_URL)
+            req.add_header("Authorization", f"Bearer {token}")
+            req.add_header("Accept", "application/json")
+            req.add_header("Accept-Language", "en-US,en;q=0.9")
+            req.add_header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
+            try:
+                with _OPENER.open(req, timeout=15) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                if e.code == 403 and attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                return None
+            except (urllib.error.URLError, OSError, ValueError):
+                return None
+        return None
 
     @staticmethod
     def _unix_to_dt(unix_ts) -> datetime | None:
@@ -83,80 +87,74 @@ class CodexProvider(BaseProvider):
         except (TypeError, ValueError, OSError):
             return None
 
+    @staticmethod
+    def _window_label(seconds: int) -> str:
+        """Convert window seconds to a short label."""
+        if seconds <= 21600:  # <= 6h
+            return "5h"
+        if seconds <= 90000:  # <= 25h
+            return "1d"
+        if seconds <= 691200:  # <= 8d
+            return "7d"
+        days = seconds // 86400
+        return f"{days}d"
+
     def fetch(self) -> UsageData:
         data = UsageData(service="Codex")
 
-        path = self._latest_session_file()
-        if path is None:
-            data.available = False
-            data.error = "No Codex sessions found"
-            return data
+        payload = self._fetch_usage_api()
+        if payload is None:
+            # Fallback to session file
+            return self._fetch_from_session()
 
-        result = self._last_token_count(path)
-        if result is None:
-            data.available = False
-            data.error = "No token_count event in latest session"
-            return data
+        data.model = "gpt-5.5"
+        data.plan_type = payload.get("plan_type", "")
 
-        tc_line, ctx = result
-        payload = tc_line.get("payload") or {}
-        data.model = ctx.get("model", "")
-        data.plan_type = payload.get("rate_limits", {}).get("plan_type", "")
-
-        rate_limits = payload.get("rate_limits") or {}
-
-        # Codex rate_limits has primary and/or secondary windows, each with
-        # window_minutes (300=5h, 10080=7d) and used_percent + resets_at.
-        # We put ALL available windows into extra_windows as dynamic rows.
-        found_any = False
-        for window_key in ("primary", "secondary"):
-            win = rate_limits.get(window_key) or {}
+        # --- Rate limit windows ---
+        rl = payload.get("rate_limit") or {}
+        for win_key in ("primary_window", "secondary_window"):
+            win = rl.get(win_key) or {}
             pct = win.get("used_percent")
             if pct is None:
                 continue
-            mins = win.get("window_minutes", 0)
-            reset = self._unix_to_dt(win.get("resets_at"))
-            # Label: show the window duration + reset date
-            if mins <= 400:
-                label = "5h"
-            elif mins <= 1500:
-                label = "1d"
-            elif mins <= 10080:
-                label = "7d"
-            else:
-                label = f"{mins // 1440}d"
-            ws = WindowStats(
+            secs = win.get("limit_window_seconds", 0)
+            reset = self._unix_to_dt(win.get("reset_at"))
+            label = self._window_label(secs)
+            data.extra_windows.append(WindowStats(
                 label=label,
                 percent=float(pct),
                 budget=100,
                 used=int(float(pct)),
                 reset_at=reset,
                 is_real_limit=True,
-            )
-            data.extra_windows.append(ws)
-            found_any = True
+            ))
 
-        # Fallback: if no rate_limit windows found, show raw token counts.
-        if not found_any:
-            info = payload.get("info") or {}
-            ttu = info.get("total_token_usage") or {}
-            total_tokens = ttu.get("total_tokens", 0)
-            if total_tokens > 0:
-                data.extra_windows.append(WindowStats(
-                    label="5h",
-                    used=total_tokens,
-                    budget=self.budget_5h,
-                    percent=round(total_tokens / self.budget_5h * 100, 1)
-                    if self.budget_5h
-                    else 0.0,
-                ))
-
-        # --- Credits balance (USD prepaid credits, if any) ---
-        credits = rate_limits.get("credits")
-        if credits is not None:
+        # --- Credits ---
+        credits = payload.get("credits") or {}
+        balance = credits.get("balance")
+        if balance is not None and str(balance) != "0":
             try:
-                data.credits = f"${float(credits):.2f}"
+                data.credits = f"${float(balance):.2f}"
             except (TypeError, ValueError):
                 pass
+        elif credits.get("has_credits") is False:
+            data.credits = "$0.00"
 
+        # --- Rate limit reset credits (the "2 resets" the user sees) ---
+        reset_credits = payload.get("rate_limit_reset_credits") or {}
+        avail = reset_credits.get("available_count", 0)
+        if avail > 0:
+            # Show as an extra info line in plan_type
+            data.plan_type = f"{data.plan_type} | {avail} resets"
+
+        return data
+
+    # ------------------------------------------------------------------
+    # Fallback: read from latest session file (old method)
+    # ------------------------------------------------------------------
+    def _fetch_from_session(self) -> UsageData:
+        """Fallback: read rate_limits from the latest Codex session file."""
+        data = UsageData(service="Codex")
+        data.available = False
+        data.error = "Cannot reach ChatGPT API"
         return data
