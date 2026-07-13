@@ -153,6 +153,14 @@ class ServiceCard(QFrame):
         # --- Model-specific window (e.g. Fable 5) — hidden by default ---
         self._bar_model, self._detail_model = self._make_window_row("F5", body_layout)
         self._bar_model._row_widget.setVisible(False)
+        # --- Extra dynamic windows (e.g. Codex) ---
+        self._extra_bars: list = []
+        self._extra_container = QWidget()
+        self._extra_container.setVisible(False)
+        extra_layout = QVBoxLayout(self._extra_container)
+        extra_layout.setContentsMargins(0, 0, 0, 0)
+        extra_layout.setSpacing(7)
+        body_layout.addWidget(self._extra_container)
 
         # --- Free plan label (replaces bars when no quota) ---
         self.free_label = QLabel("Free Plan N/A")
@@ -233,6 +241,7 @@ class ServiceCard(QFrame):
             self._bar_5h._row_widget.setVisible(False)
             self._bar_7d._row_widget.setVisible(False)
             self._bar_model._row_widget.setVisible(False)
+            self._extra_container.setVisible(False)
             self.credits_label.setVisible(False)
             self.free_label.setVisible(True)
             self.error_label.setVisible(False)
@@ -240,17 +249,14 @@ class ServiceCard(QFrame):
 
         # Normal mode: show bars, hide free label
         self.free_label.setVisible(False)
-        self._bar_5h._row_widget.setVisible(True)
-        self._bar_7d._row_widget.setVisible(True)
 
         if not data.available:
             self.error_label.setText(data.error or "No data")
             self.error_label.setVisible(True)
-            self._set_bar(self._bar_5h, 0.0, "")
-            self._set_bar(self._bar_7d, 0.0, "")
-            self._detail_5h.setText("")
-            self._detail_7d.setText("")
+            self._bar_5h._row_widget.setVisible(False)
+            self._bar_7d._row_widget.setVisible(False)
             self._bar_model._row_widget.setVisible(False)
+            self._extra_container.setVisible(False)
             self.credits_label.setVisible(False)
             return
 
@@ -283,12 +289,36 @@ class ServiceCard(QFrame):
         else:
             self._bar_model._row_widget.setVisible(False)
 
+        # --- Extra dynamic windows (e.g. Codex) ---
+        self._render_extra_windows(data.extra_windows)
+
         # --- Credits balance ---
         if data.credits:
             self.credits_label.setText(f"Credits: {data.credits}")
             self.credits_label.setVisible(True)
         else:
             self.credits_label.setVisible(False)
+
+    def _render_extra_windows(self, windows: list) -> None:
+        """Dynamically create/show/hide progress bar rows for extra windows."""
+        layout = self._extra_container.layout()
+        # Remove old rows
+        for bar, _detail in self._extra_bars:
+            bar._row_widget.setParent(None)
+            bar._row_widget.deleteLater()
+        self._extra_bars.clear()
+
+        if not windows:
+            self._extra_container.setVisible(False)
+            return
+
+        for ws in windows:
+            bar, detail = self._make_window_row(ws.label, layout)
+            self._set_bar(bar, ws.percent, "")
+            detail.setText(self._detail_text(ws))
+            self._extra_bars.append((bar, detail))
+
+        self._extra_container.setVisible(True)
 
     def _detail_text(self, w) -> str:
         if w.is_real_limit:

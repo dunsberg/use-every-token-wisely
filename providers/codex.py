@@ -105,9 +105,10 @@ class CodexProvider(BaseProvider):
 
         rate_limits = payload.get("rate_limits") or {}
 
-        # Codex rate_limits may have primary and/or secondary windows.
-        # Each has window_minutes: 300 = 5h, 10080 = 7d. The structure has
-        # changed over time, so we classify by window_minutes, not by name.
+        # Codex rate_limits has primary and/or secondary windows, each with
+        # window_minutes (300=5h, 10080=7d) and used_percent + resets_at.
+        # We put ALL available windows into extra_windows as dynamic rows.
+        found_any = False
         for window_key in ("primary", "secondary"):
             win = rate_limits.get(window_key) or {}
             pct = win.get("used_percent")
@@ -115,33 +116,40 @@ class CodexProvider(BaseProvider):
                 continue
             mins = win.get("window_minutes", 0)
             reset = self._unix_to_dt(win.get("resets_at"))
+            # Label: show the window duration + reset date
+            if mins <= 400:
+                label = "5h"
+            elif mins <= 1500:
+                label = "1d"
+            elif mins <= 10080:
+                label = "7d"
+            else:
+                label = f"{mins // 1440}d"
             ws = WindowStats(
-                label="5h" if mins <= 400 else "7d",
+                label=label,
                 percent=float(pct),
                 budget=100,
                 used=int(float(pct)),
                 reset_at=reset,
                 is_real_limit=True,
             )
-            if mins <= 400:
-                data.window_5h = ws
-            else:
-                data.window_7d = ws
+            data.extra_windows.append(ws)
+            found_any = True
 
         # Fallback: if no rate_limit windows found, show raw token counts.
-        if data.window_5h.percent == 0 and data.window_7d.percent == 0:
+        if not found_any:
             info = payload.get("info") or {}
             ttu = info.get("total_token_usage") or {}
             total_tokens = ttu.get("total_tokens", 0)
             if total_tokens > 0:
-                data.window_5h = WindowStats(
+                data.extra_windows.append(WindowStats(
                     label="5h",
                     used=total_tokens,
                     budget=self.budget_5h,
                     percent=round(total_tokens / self.budget_5h * 100, 1)
                     if self.budget_5h
                     else 0.0,
-                )
+                ))
 
         # --- Credits balance (USD prepaid credits, if any) ---
         credits = rate_limits.get("credits")
