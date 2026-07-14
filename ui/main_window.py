@@ -261,6 +261,10 @@ class MainWindow(QMainWindow):
             card.collapseChanged.connect(self._refit)
 
         container = QWidget()
+        # Make the container transparent so only the FrostedFrame outline
+        # is visible — without this, QMainWindow fills its rect with the
+        # default widget background (dark on some Windows themes).
+        container.setStyleSheet("background: transparent;")
         if IS_MAC:
             container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         cl = QVBoxLayout(container)
