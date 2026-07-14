@@ -368,6 +368,9 @@ class MainWindow(QMainWindow):
             card.update_data(data)
         self._refit()
         self._update_countdown_label()
+        # Re-assert always-on-top after each refresh — Windows can lose this.
+        self.raise_()
+        self.activateWindow()
 
     # ------------------------------------------------------------------ drag
     def mousePressEvent(self, event: QMouseEvent) -> None:

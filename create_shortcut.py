@@ -12,6 +12,12 @@ PROJECT_DIR = Path(__file__).resolve().parent
 PYTHON_EXE = sys.executable
 MAIN_PY = PROJECT_DIR / "main.py"
 
+# On Windows, use pythonw.exe (no console window) if available.
+if sys.platform == "win32":
+    pythonw = Path(PYTHON_EXE).with_name("pythonw.exe")
+    if pythonw.exists():
+        PYTHON_EXE = str(pythonw)
+
 
 def main():
     if sys.platform == "darwin":
