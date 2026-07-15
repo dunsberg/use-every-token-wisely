@@ -327,6 +327,12 @@ class MainWindow(QMainWindow):
         self._refresh_timer.timeout.connect(self._on_refresh_tick)
         self._refresh_timer.start(COUNTDOWN_TICK_MS)
 
+        # Periodically re-assert topmost — Windows loses it when other
+        # windows are maximized or activated.
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.timeout.connect(self._assert_on_top)
+        self._topmost_timer.start(10000)  # every 10 seconds
+
     def _on_refresh_tick(self) -> None:
         self._seconds_to_refresh -= 1
         if self._seconds_to_refresh <= 0:
@@ -372,9 +378,37 @@ class MainWindow(QMainWindow):
             card.update_data(data)
         self._refit()
         self._update_countdown_label()
-        # Re-assert always-on-top after each refresh — Windows can lose this.
-        self.raise_()
-        self.activateWindow()
+        self._assert_on_top()
+
+    # ------------------------------------------------------------------ always on top
+    def _assert_on_top(self) -> None:
+        """Force the window to stay on top using the Windows native API.
+
+        Qt's WindowStaysOnTopHint is unreliable on Windows — it gets lost
+        when another window is maximized or activated. SetWindowPos with
+        HWND_TOPMOST re-asserts it at the OS level.
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+            hwnd = int(self.winId())
+            HWND_TOPMOST = -1
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_NOACTIVATE = 0x0010
+            SWP_SHOWWINDOW = 0x0040
+            ctypes.windll.user32.SetWindowPos(
+                hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            )
+        except Exception:
+            pass
+
+    def showEvent(self, event) -> None:  # type: ignore[override]
+        super().showEvent(event)
+        # Assert topmost shortly after show, once the HWND is created.
+        QTimer.singleShot(100, self._assert_on_top)
 
     # ------------------------------------------------------------------ drag
     def mousePressEvent(self, event: QMouseEvent) -> None:
