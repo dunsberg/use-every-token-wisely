@@ -53,11 +53,41 @@ class CodexProvider(BaseProvider):
         except (json.JSONDecodeError, OSError):
             return None, {}
 
+    def _warmup_cloudflare(self, token: str) -> None:
+        """Send a warm-up request to get/refresh the __cf_bm cookie.
+
+        ChatGPT's Cloudflare requires a valid __cf_bm cookie before API
+        requests succeed. The first hit returns 403 but sets the cookie.
+        Without this, direct calls to /codex/usage get SSL-disconnected.
+        """
+        req = urllib.request.Request("https://chatgpt.com/backend-api/me")
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        )
+        try:
+            with _OPENER.open(req, timeout=10) as _:
+                pass
+        except urllib.error.HTTPError:
+            # 403 is expected — the important thing is the cookie gets set.
+            try:
+                _.read()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def _fetch_usage_api(self) -> dict | None:
         """Call the ChatGPT codex/usage API."""
         token, _ = self._load_auth()
         if not token:
             return None
+
+        # Warm up Cloudflare to get/refresh the __cf_bm cookie.
+        self._warmup_cloudflare(token)
 
         for attempt in range(3):
             req = urllib.request.Request(USAGE_URL)
@@ -72,11 +102,18 @@ class CodexProvider(BaseProvider):
                 with _OPENER.open(req, timeout=15) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
-                if e.code == 403 and attempt < 2:
+                try:
+                    e.read()
+                except Exception:
+                    pass
+                if attempt < 2:
                     time.sleep(1.5 * (attempt + 1))
                     continue
                 return None
             except (urllib.error.URLError, OSError, ValueError):
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
                 return None
         return None
 
