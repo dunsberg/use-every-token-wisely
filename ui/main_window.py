@@ -205,11 +205,11 @@ class MainWindow(QMainWindow):
 
         self._providers: list[tuple[str, BaseProvider, ServiceCard]] = []
         for name, provider_cls in [
-            ("ZCode", ZCodeProvider),
             ("Claude", ClaudeProvider),
-            ("Codex", CodexProvider),
-            ("Trae", TraeProvider),
+            ("ChatGPT", CodexProvider),
+            ("ZCode", ZCodeProvider),
             ("Kimi", KimiProvider),
+            ("Trae", TraeProvider),
         ]:
             b = budgets.get(name, {})
             provider = provider_cls(
@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
         msg.setText(
             "<h3 align='center'>⚡Use Every Token Wisely⚡</h3>"
             "<p align='center'>Real-time AI usage monitor for</p>"
-            "<p align='center'><b>ZCode · Claude · Codex · Trae</b></p>"
+            "<p align='center'><b>Claude · ChatGPT · ZCode · Kimi · Trae</b></p>"
             "<br>"
             "<p align='center'>github.com/dunsberg/use-every-token-wisely</p>"
             "<p align='center'><b>MIT License</b></p>"

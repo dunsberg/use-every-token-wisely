@@ -137,7 +137,7 @@ class CodexProvider(BaseProvider):
         return f"{days}d"
 
     def fetch(self) -> UsageData:
-        data = UsageData(service="Codex")
+        data = UsageData(service="ChatGPT")
 
         payload = self._fetch_usage_api()
         if payload is None:
@@ -191,7 +191,7 @@ class CodexProvider(BaseProvider):
     # ------------------------------------------------------------------
     def _fetch_from_session(self) -> UsageData:
         """Fallback: read rate_limits from the latest Codex session file."""
-        data = UsageData(service="Codex")
+        data = UsageData(service="ChatGPT")
         data.available = False
         data.error = "Cannot reach ChatGPT API"
         return data

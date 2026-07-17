@@ -3,7 +3,7 @@
 Service color schemes on a frosted-glass base:
   - ZCODE  → blue + white
   - Claude → orange + white
-  - Codex  → black + white
+  - ChatGPT  → black + white
   - TRAE   → deep green + white
 
 Progress bars show REMAINING usage (the unfilled portion), so a full bar means
@@ -31,7 +31,7 @@ SERVICE_COLORS = {
         "card_bg": "rgba(253, 245, 240, 0.45)",
         "text_dark": "#6b3416",
     },
-    "Codex": {
+    "ChatGPT": {
         "primary": "#1a1a1a",
         "primary_light": "#4a4a4a",
         "border": "rgba(26, 26, 26, 0.20)",
@@ -114,8 +114,8 @@ def progress_chunk_qss(service: str, remaining_pct: float) -> str:
     """
     c = SERVICE_COLORS[service]
     fill = c["primary"]
-    # Codex uses a dark bar, so its text needs to be light for legibility.
-    text_color = "#f5ebd6" if service == "Codex" else "rgba(0,0,0,0.6)"
+    # ChatGPT uses a dark bar, so its text needs to be light for legibility.
+    text_color = "#f5ebd6" if service == "ChatGPT" else "rgba(0,0,0,0.6)"
     return f"""
         QProgressBar {{
             background-color: rgba(0, 0, 0, 0.08);
