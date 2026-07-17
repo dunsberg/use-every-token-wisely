@@ -86,10 +86,11 @@ class CodexProvider(BaseProvider):
         if not token:
             return None
 
-        # Warm up Cloudflare to get/refresh the __cf_bm cookie.
-        self._warmup_cloudflare(token)
-
         for attempt in range(3):
+            # Warm up Cloudflare before each attempt to ensure a fresh cookie.
+            self._warmup_cloudflare(token)
+            time.sleep(0.5)
+
             req = urllib.request.Request(USAGE_URL)
             req.add_header("Authorization", f"Bearer {token}")
             req.add_header("Accept", "application/json")
