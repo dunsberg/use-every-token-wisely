@@ -45,6 +45,13 @@ SERVICE_COLORS = {
         "card_bg": "rgba(237, 247, 240, 0.45)",
         "text_dark": "#1a4a2e",
     },
+    "Kimi": {
+        "primary": "#7c3aed",
+        "primary_light": "#a78bfa",
+        "border": "rgba(124, 58, 237, 0.25)",
+        "card_bg": "rgba(243, 240, 252, 0.45)",
+        "text_dark": "#3b1d8a",
+    },
 }
 
 CARD_RADIUS = 12

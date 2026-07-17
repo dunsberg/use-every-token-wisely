@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 from providers.base import BaseProvider
 from providers.claude import ClaudeProvider
 from providers.codex import CodexProvider
+from providers.kimi import KimiProvider
 from providers.trae import TraeProvider
 from providers.zcode import ZCodeProvider
 from ui import styles
@@ -208,6 +209,7 @@ class MainWindow(QMainWindow):
             ("Claude", ClaudeProvider),
             ("Codex", CodexProvider),
             ("Trae", TraeProvider),
+            ("Kimi", KimiProvider),
         ]:
             b = budgets.get(name, {})
             provider = provider_cls(
