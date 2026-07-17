@@ -6,7 +6,7 @@ Python 3.12 or newer. If you don't have it:
 - **Windows:** [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install
 - **macOS:** `brew install python` or [python.org](https://www.python.org/downloads/)
 
-You'll also need at least one of these installed and logged in: [ZCode](https://z.ai), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), or [Trae](https://www.trae.cn/).
+You'll also need at least one of these installed and logged in: [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [ChatGPT/Codex](https://github.com/openai/codex), [ZCode](https://z.ai), [Kimi](https://kimi.com), or [Trae](https://www.trae.cn/).
 
 ## Windows
 

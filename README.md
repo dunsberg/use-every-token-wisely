@@ -1,6 +1,6 @@
 # ⚡Use Every Token Wisely⚡
 
-A small desktop widget that shows your AI usage quotas for ZCode, Claude, Codex, and Trae — so you have a rough idea of how much you have left before the next reset.
+A small desktop widget that shows your AI usage quotas for Claude, ChatGPT, ZCode, Kimi, and Trae — so you have a rough idea of how much you have left before the next reset.
 
 It's a personal project, fairly rough around the edges, but it works for my daily use. Feel free to try it or adapt it.
 
@@ -39,9 +39,10 @@ For step-by-step instructions, desktop shortcuts, and boot auto-launch, see **[I
 
 | Service | Status | How It Reads Quotas |
 |---------|--------|---------------------|
-| **ZCode** | Working | BigModel quota API using the API key from `~/.zcode/v2/config.json` |
 | **Claude** | Working | claude.ai OAuth usage API using credentials from local files |
-| **Codex** | Working | ChatGPT codex/usage API using the OAuth token from `~/.codex/auth.json` |
+| **ChatGPT** | Working | ChatGPT codex/usage API using the OAuth token from `~/.codex/auth.json` |
+| **ZCode** | Working | BigModel quota API using the API key from `~/.zcode/v2/config.json` |
+| **Kimi** | Working | Kimi membership API using the access token from `~/.kimi-desktop/` |
 | **Trae** | Limited | Shows plan tier only — Trae's quota API uses proprietary signing that this widget can't replicate yet |
 
 No API keys to configure — credentials are read from each tool's existing local install.
