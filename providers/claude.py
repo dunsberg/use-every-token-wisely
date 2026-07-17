@@ -305,17 +305,40 @@ class ClaudeProvider(BaseProvider):
         except (urllib.error.URLError, urllib.error.HTTPError, OSError, ValueError):
             return None
 
+    def _warmup_cloudflare(self, token: str) -> None:
+        """Send a warm-up request to get/refresh the __cf_bm cookie.
+
+        claude.ai's Cloudflare requires a valid __cf_bm cookie. The first
+        hit returns 403 but sets the cookie. Without this, direct calls
+        to the usage API fail.
+        """
+        req = urllib.request.Request("https://claude.ai/api/oauth/profile")
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/json")
+        req.add_header("Accept-Language", "en-US,en;q=0.9")
+        req.add_header("User-Agent", "claude-code/2.1.207")
+        try:
+            with _OPENER.open(req, timeout=10) as _:
+                pass
+        except urllib.error.HTTPError:
+            try:
+                _.read()
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     def _fetch_usage(self) -> dict | None:
         token = self._load_token()
         if not token:
             return None
         import time
 
-        # claude.ai is fronted by Cloudflare. The __cf_bm cookie expires
-        # after ~30 min, so long-running widgets will hit 403 challenges
-        # repeatedly. On 403, clear the cookie jar and retry — the first
-        # request gets challenged (sets a new cookie), the second succeeds.
-        for attempt in range(4):
+        for attempt in range(3):
+            # Warm up Cloudflare before each attempt to ensure a fresh cookie.
+            self._warmup_cloudflare(token)
+            time.sleep(0.5)
+
             req = urllib.request.Request(USAGE_URL)
             req.add_header("Authorization", f"Bearer {token}")
             req.add_header("Accept", "application/json")
@@ -325,30 +348,21 @@ class ClaudeProvider(BaseProvider):
                 with _OPENER.open(req, timeout=15) as resp:
                     return json.loads(resp.read().decode("utf-8"))
             except urllib.error.HTTPError as e:
-                if e.code == 403 and attempt < 3:
-                    # Cloudflare challenge — clear stale cookies and retry.
-                    _COOKIE_JAR.clear()
-                    # Drain the error body so the connection can be reused.
-                    try:
-                        e.read()
-                    except Exception:
-                        pass
-                    time.sleep(1.5 * (attempt + 1))
-                    continue
-                if e.code == 401 and attempt < 3:
+                try:
+                    e.read()
+                except Exception:
+                    pass
+                if e.code == 401 and attempt < 2:
                     # Token might be stale — reload and retry.
                     token = self._load_token()
                     if not token:
                         return None
-                    try:
-                        e.read()
-                    except Exception:
-                        pass
-                    time.sleep(1)
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
                     continue
                 return None
             except (urllib.error.URLError, OSError, ValueError):
-                if attempt < 3:
+                if attempt < 2:
                     time.sleep(1.5 * (attempt + 1))
                     continue
                 return None
