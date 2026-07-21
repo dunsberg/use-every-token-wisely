@@ -27,3 +27,6 @@ Thumbs.db
 # Temp scripts
 verify.py
 screenshot_test.py
+
+# Single-instance lock (runtime artifact)
+.instance.lock
