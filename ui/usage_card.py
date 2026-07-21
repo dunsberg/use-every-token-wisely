@@ -73,17 +73,26 @@ def _format_tokens(n: int) -> str:
 
 
 def _format_reset(dt: datetime | None) -> str:
-    """Format a reset time as HH:MM (today) or MM/DD (other days)."""
+    """Format a reset time as a countdown (e.g. '3h 24m', '2d 5h')."""
     if dt is None:
         return "--"
     local = dt.astimezone()
     now = datetime.now().astimezone()
-    if local.date() == now.date():
-        return local.strftime("reset %H:%M")
-    delta_days = (local.date() - now.date()).days
-    if delta_days == 1:
-        return local.strftime("reset tomorrow %H:%M")
-    return local.strftime("reset %m/%d")
+    delta = local - now
+    total_seconds = delta.total_seconds()
+
+    if total_seconds <= 0:
+        return "resetting..."
+
+    days = int(total_seconds // 86400)
+    hours = int((total_seconds % 86400) // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+
+    if days > 0:
+        return f"resets in {days}d {hours}h"
+    if hours > 0:
+        return f"resets in {hours}h {minutes}m"
+    return f"resets in {minutes}m"
 
 
 class ServiceCard(QFrame):
