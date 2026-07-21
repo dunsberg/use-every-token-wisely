@@ -29,7 +29,7 @@ For step-by-step instructions, desktop shortcuts, and boot auto-launch, see **[I
 
 ## What It Does
 
-- Shows 5-hour and 7-day usage windows for each service, with reset dates
+- Shows 5-hour and 7-day usage windows for each service, with reset countdowns
 - Refreshes automatically every 5 minutes (manual refresh via right-click)
 - Translucent, frameless, stays on top — drag it wherever you want
 - Collapsible cards — hide services you don't use
