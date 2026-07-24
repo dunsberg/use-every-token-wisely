@@ -449,20 +449,20 @@ class ClaudeProvider(BaseProvider):
         data.plan_type = "Pro"
 
         # --- Credits balance ---
+        # The API exposes monthly_limit and used_credits in extra_usage.
+        # The web UI shows a higher "current balance" that may include
+        # prepaid credits not exposed in this API — we show what's available.
         spend = payload.get("spend") or {}
         balance = spend.get("balance")
         if balance is not None:
-            # balance has amount_minor + exponent (cents with decimal places)
             amt = balance.get("amount_minor", 0)
             exp = balance.get("exponent", 2)
             data.credits = f"${amt / (10 ** exp):.2f}"
         else:
-            # balance is null when out of credits
             extra = payload.get("extra_usage") or {}
             if extra.get("disabled_reason") == "out_of_credits":
                 data.credits = "$0.00"
             elif extra.get("is_enabled"):
-                # Compute from limit - used
                 limit = extra.get("monthly_limit", 0)
                 used = extra.get("used_credits", 0)
                 exp = (spend.get("limit") or {}).get("exponent", 2)

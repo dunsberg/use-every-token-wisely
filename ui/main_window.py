@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QTimer, Qt
-from PySide6.QtGui import QAction, QColor, QMouseEvent, QPainter, QPainterPath, QPalette
+from PySide6.QtGui import QAction, QColor, QIcon, QMouseEvent, QPainter, QPainterPath, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
@@ -289,6 +290,8 @@ class MainWindow(QMainWindow):
             y = max(screen.top(), min(y, screen.bottom() - self.height()))
             self.move(x, y)
 
+        self._setup_tray_icon()
+
     def _refit(self) -> None:
         """Recalculate the window height to match current content.
 
@@ -322,6 +325,60 @@ class MainWindow(QMainWindow):
 
         if total_h > 0:
             self.setFixedHeight(total_h)
+
+    # ------------------------------------------------------------------ tray
+    def _setup_tray_icon(self) -> None:
+        """Create a system tray icon so the widget can be found after
+        minimizing all windows."""
+        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
+        if icon_path.exists():
+            icon = QIcon(str(icon_path))
+        else:
+            icon = QIcon()
+        self._tray = QSystemTrayIcon(icon, self)
+        self._tray.setToolTip("Use Every Token Wisely")
+        self._tray.setVisible(True)
+
+        # Tray menu
+        tray_menu = QMenu()
+        tray_menu.setStyleSheet(styles.WINDOW_QSS)
+
+        show_action = QAction("Show widget", tray_menu)
+        show_action.triggered.connect(self._show_from_tray)
+        tray_menu.addAction(show_action)
+
+        refresh_action = QAction("↻ Refresh now", tray_menu)
+        refresh_action.triggered.connect(self.refresh_now)
+        tray_menu.addAction(refresh_action)
+
+        tray_menu.addSeparator()
+
+        quit_action = QAction("✕ Quit", tray_menu)
+        quit_action.triggered.connect(self.close)
+        tray_menu.addAction(quit_action)
+
+        self._tray.setContextMenu(tray_menu)
+        # Double-click tray icon to show widget
+        self._tray.activated.connect(self._on_tray_activated)
+
+    def _show_from_tray(self) -> None:
+        """Show and raise the widget window."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self._assert_on_top()
+
+    def _on_tray_activated(self, reason) -> None:
+        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
+            self._show_from_tray()
+
+    # ------------------------------------------------------------------ close
+    def closeEvent(self, event) -> None:  # type: ignore[override]
+        self._config["position"] = [self.x(), self.y()]
+        save_config(self._config)
+        if hasattr(self, "_tray"):
+            self._tray.hide()
+        super().closeEvent(event)
 
     # ------------------------------------------------------------------ timers
     def _setup_timers(self) -> None:
@@ -490,8 +547,3 @@ class MainWindow(QMainWindow):
         msg.setStyleSheet(styles.WINDOW_QSS)
         msg.exec()
 
-    # ------------------------------------------------------------------ close
-    def closeEvent(self, event) -> None:  # type: ignore[override]
-        self._config["position"] = [self.x(), self.y()]
-        save_config(self._config)
-        super().closeEvent(event)
