@@ -331,13 +331,35 @@ class MainWindow(QMainWindow):
         """Create a system tray icon so the widget can be found after
         minimizing all windows."""
         icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
+        icon = QIcon()
         if icon_path.exists():
             icon = QIcon(str(icon_path))
-        else:
-            icon = QIcon()
+        # Fallback: use standard style icon if .ico failed
+        if icon.isNull():
+            icon = QIcon.fromTheme(QIcon.ThemeIcon.ApplicationRun)
+        if icon.isNull():
+            # Last resort: create a simple colored icon programmatically
+            from PySide6.QtGui import QPixmap, QPainter, QColor
+            pm = QPixmap(32, 32)
+            pm.fill(QColor(0, 0, 0, 0))
+            painter = QPainter(pm)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setBrush(QColor("#ffcc00"))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(4, 4, 24, 24, 6, 6)
+            painter.end()
+            icon = QIcon(pm)
+
         self._tray = QSystemTrayIcon(icon, self)
         self._tray.setToolTip("Use Every Token Wisely")
         self._tray.setVisible(True)
+        # Show a balloon message so the user knows where the icon is.
+        self._tray.showMessage(
+            "Use Every Token Wisely",
+            "Widget is running. Click this icon to show it.",
+            QSystemTrayIcon.MessageIcon.Information,
+            3000,
+        )
 
         # Tray menu
         tray_menu = QMenu()
