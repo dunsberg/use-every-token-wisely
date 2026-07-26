@@ -28,3 +28,4 @@ Thumbs.db
 # Temp scripts
 verify.py
 screenshot_test.py
+.single-instance.lock

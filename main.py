@@ -7,13 +7,23 @@ Usage:
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
+from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import QApplication
 
 from ui.main_window import MainWindow, load_config
 
 
 def main() -> int:
+    # Single-instance guard: exit silently if another instance is running.
+    lock_file = QLockFile(
+        str(Path(__file__).resolve().parent / ".single-instance.lock")
+    )
+    lock_file.setStaleLockTime(0)
+    if not lock_file.tryLock(100):
+        return 0
+
     app = QApplication(sys.argv)
     app.setApplicationName("AI Usage Monitor")
     app.setQuitOnLastWindowClosed(True)
