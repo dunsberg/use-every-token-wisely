@@ -48,6 +48,18 @@ def _home() -> Path:
     return Path(os.path.expanduser("~"))
 
 
+def _num(value, default: float = 0.0) -> float:
+    """float() that tolerates None — the API returns explicit nulls for some
+    fields (e.g. extra_usage.monthly_limit), and dict.get defaults only apply
+    to *missing* keys, not null values."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _parse_iso(raw) -> datetime | None:
     if not raw:
         return None
@@ -378,7 +390,7 @@ class ClaudeProvider(BaseProvider):
                 lim.get("kind") == "weekly_scoped"
                 and (model.get("display_name") or "") == display_name
             ):
-                return float(lim.get("percent", 0)), lim.get("resets_at")
+                return _num(lim.get("percent")), lim.get("resets_at")
         return -1.0, None
 
     def fetch(self) -> UsageData:
@@ -405,9 +417,9 @@ class ClaudeProvider(BaseProvider):
             reset5 = session.get("resets_at")
         data.window_5h = WindowStats(
             label="5h",
-            percent=float(pct5),
+            percent=_num(pct5),
             budget=100,
-            used=int(round(float(pct5))),
+            used=int(round(_num(pct5))),
             reset_at=_parse_iso(reset5),
             is_real_limit=True,
         )
@@ -429,18 +441,18 @@ class ClaudeProvider(BaseProvider):
         if fable_pct >= 0:
             data.window_model = WindowStats(
                 label="F5",
-                percent=float(fable_pct),
+                percent=fable_pct,
                 budget=100,
-                used=int(round(float(fable_pct))),
+                used=int(round(fable_pct)),
                 reset_at=_parse_iso(fable_reset),
                 is_real_limit=True,
             )
 
         data.window_7d = WindowStats(
             label="7d",
-            percent=float(pct7),
+            percent=_num(pct7),
             budget=100,
-            used=int(round(float(pct7))),
+            used=int(round(_num(pct7))),
             reset_at=_parse_iso(reset7),
             is_real_limit=True,
         )
@@ -455,18 +467,21 @@ class ClaudeProvider(BaseProvider):
         spend = payload.get("spend") or {}
         balance = spend.get("balance")
         if balance is not None:
-            amt = balance.get("amount_minor", 0)
-            exp = balance.get("exponent", 2)
+            # balance has amount_minor + exponent (cents with decimal places)
+            amt = _num(balance.get("amount_minor"))
+            exp = _num(balance.get("exponent"), 2)
             data.credits = f"${amt / (10 ** exp):.2f}"
         else:
             extra = payload.get("extra_usage") or {}
             if extra.get("disabled_reason") == "out_of_credits":
                 data.credits = "$0.00"
-            elif extra.get("is_enabled"):
-                limit = extra.get("monthly_limit", 0)
-                used = extra.get("used_credits", 0)
-                exp = (spend.get("limit") or {}).get("exponent", 2)
-                remaining = float(limit) - float(used)
+            elif extra.get("is_enabled") and extra.get("monthly_limit") is not None:
+                # Compute from limit - used (skip when limit is null —
+                # the API does this for plans without a credit cap).
+                limit = _num(extra.get("monthly_limit"))
+                used = _num(extra.get("used_credits"))
+                exp = _num((spend.get("limit") or {}).get("exponent"), 2)
+                remaining = limit - used
                 data.credits = f"${remaining / (10 ** exp):.2f}"
 
         return data

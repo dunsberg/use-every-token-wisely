@@ -15,6 +15,7 @@ config.json
 screenshot*.py
 crop.py
 test_*.py
+!tests/test_*.py
 
 # OS
 .DS_Store
