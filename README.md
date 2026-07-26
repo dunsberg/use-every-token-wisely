@@ -29,11 +29,13 @@ For step-by-step instructions, desktop shortcuts, and boot auto-launch, see **[I
 
 ## What It Does
 
-- Shows 5-hour and 7-day usage windows for each service, with reset countdowns
+- Shows usage windows for each service with reset countdowns (e.g. "resets in 3h 24m")
 - Refreshes automatically every 5 minutes (manual refresh via right-click)
+- System tray icon — find the widget after minimizing all windows
 - Translucent, frameless, stays on top — drag it wherever you want
 - Collapsible cards — hide services you don't use
 - Percentage text turns red when you're below 10% remaining
+- Credits balance shown for Claude and ChatGPT when available
 
 ## Supported Services
 
@@ -51,6 +53,7 @@ No API keys to configure — credentials are read from each tool's existing loca
 
 - **Drag** to move the widget (position is saved)
 - **Right-click** for menu: refresh, collapse/expand services, launch on startup, about, quit
+- **System tray icon** (lightning bolt) — double-click to show the widget if it's hidden
 
 ## Requirements
 
