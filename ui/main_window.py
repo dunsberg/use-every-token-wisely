@@ -231,6 +231,11 @@ class MainWindow(QMainWindow):
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
+        # Qt only sets WA_QuitOnClose for plain Qt.Window widgets — Tool
+        # windows don't get it, so closing this window never emitted
+        # lastWindowClosed and app.exec() ran forever as a zombie process
+        # (which then held the single-instance lock and blocked relaunch).
+        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, True)
         opacity = self._config.get("opacity", 0.92)
         self.setWindowOpacity(float(opacity))
         # On macOS, frameless windows are opaque by default — we need
