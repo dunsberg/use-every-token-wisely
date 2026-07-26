@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
-from PySide6.QtCore import Qt, QRect, Signal
+from PySide6.QtCore import Qt, QRect, Signal, QTimer
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import (
     QFrame,
@@ -72,14 +72,13 @@ def _format_tokens(n: int) -> str:
     return str(n)
 
 
-def _format_reset(dt: datetime | None) -> str:
-    """Format a reset time as a countdown (e.g. '3h 24m', '2d 5h')."""
+def _format_countdown(dt: datetime | None) -> str:
+    """Format a reset time as a countdown (e.g. 'resets in 3h 24m')."""
     if dt is None:
         return "--"
     local = dt.astimezone()
     now = datetime.now().astimezone()
-    delta = local - now
-    total_seconds = delta.total_seconds()
+    total_seconds = (local - now).total_seconds()
 
     if total_seconds <= 0:
         return "resetting..."
@@ -93,6 +92,30 @@ def _format_reset(dt: datetime | None) -> str:
     if hours > 0:
         return f"resets in {hours}h {minutes}m"
     return f"resets in {minutes}m"
+
+
+def _format_absolute(dt: datetime | None) -> str:
+    """Format a reset time as HH:MM (today) or MM/DD (other days)."""
+    if dt is None:
+        return "--"
+    local = dt.astimezone()
+    now = datetime.now().astimezone()
+    if local.date() == now.date():
+        return local.strftime("reset %H:%M")
+    if (local.date() - now.date()).days == 1:
+        return local.strftime("reset tomorrow %H:%M")
+    return local.strftime("reset %m/%d")
+
+
+class _ClickableLabel(QLabel):
+    """A QLabel that emits ``clicked`` on left-button release."""
+
+    clicked = Signal()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mouseReleaseEvent(event)
 
 
 class ServiceCard(QFrame):
@@ -110,10 +133,19 @@ class ServiceCard(QFrame):
         super().__init__(parent)
         self._service = service
         self._collapsed = False
+        #: False = show countdown ('resets in 3h 24m'); True = absolute time.
+        self._show_absolute = False
+        #: (detail_label, WindowStats) pairs whose countdown text ticks live.
+        self._countdown_targets: list = []
         self.setObjectName("card")
         self.setStyleSheet(styles.card_qss(service))
         self._build()
         self._apply_data(UsageData(service=service, available=False, error="Loading..."))
+        # Tick the countdown text every 30 s (labels only, no network).
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.setInterval(30_000)
+        self._countdown_timer.timeout.connect(self._refresh_countdowns)
+        self._countdown_timer.start()
 
     @property
     def is_collapsed(self) -> bool:
@@ -219,9 +251,12 @@ class ServiceCard(QFrame):
         top.addWidget(bar, 1)
         row.addLayout(top)
 
-        detail = QLabel("")
+        detail = _ClickableLabel("")
         detail.setObjectName("detailLabel")
         detail.setContentsMargins(30, 0, 0, 0)
+        detail.setCursor(Qt.CursorShape.PointingHandCursor)
+        detail.setToolTip("Click to toggle countdown / absolute reset time")
+        detail.clicked.connect(self._toggle_time_format)
         row.addWidget(detail)
 
         parent_layout.addWidget(row_widget)
@@ -234,6 +269,8 @@ class ServiceCard(QFrame):
         self._apply_data(data)
 
     def _apply_data(self, data: UsageData) -> None:
+        # Rebuilt below for every visible window row.
+        self._countdown_targets = []
         if not self._collapsed:
             self.plan_label.setText(data.plan_type.upper() if data.plan_type else "")
         self._last_plan = data.plan_type.upper() if data.plan_type else ""
@@ -278,6 +315,7 @@ class ServiceCard(QFrame):
         else:
             self._set_bar(self._bar_5h, w5.percent, "")
             self._detail_5h.setText(self._detail_text(w5))
+            self._countdown_targets.append((self._detail_5h, w5))
             self._bar_5h._row_widget.setVisible(True)
 
         # --- 7d window (hide if no data for this window) ---
@@ -287,6 +325,7 @@ class ServiceCard(QFrame):
         else:
             self._set_bar(self._bar_7d, w7.percent, "")
             self._detail_7d.setText(self._detail_text(w7))
+            self._countdown_targets.append((self._detail_7d, w7))
             self._bar_7d._row_widget.setVisible(True)
 
         # --- Model-specific window (e.g. Fable 5) ---
@@ -294,6 +333,7 @@ class ServiceCard(QFrame):
             wm = data.window_model
             self._set_bar(self._bar_model, wm.percent, "")
             self._detail_model.setText(self._detail_text(wm))
+            self._countdown_targets.append((self._detail_model, wm))
             self._bar_model._row_widget.setVisible(True)
         else:
             self._bar_model._row_widget.setVisible(False)
@@ -326,17 +366,41 @@ class ServiceCard(QFrame):
             self._set_bar(bar, ws.percent, "")
             detail.setText(self._detail_text(ws))
             self._extra_bars.append((bar, detail))
+            self._countdown_targets.append((detail, ws))
 
         self._extra_container.setVisible(True)
 
+    def _toggle_time_format(self) -> None:
+        """Switch all rows on this card between countdown and absolute time."""
+        self._show_absolute = not self._show_absolute
+        self._refresh_countdowns()
+
     def _detail_text(self, w) -> str:
+        reset = (
+            _format_absolute(w.reset_at)
+            if self._show_absolute
+            else _format_countdown(w.reset_at)
+        )
         if w.is_real_limit:
             remaining = max(0.0, 100.0 - w.percent)
-            return f"{remaining:.0f}% remaining · {_format_reset(w.reset_at)}"
+            return f"{remaining:.0f}% remaining · {reset}"
         return (
             f"{_format_tokens(w.used)} / {_format_tokens(w.budget)} tokens"
-            f"  ·  {_format_reset(w.reset_at)}"
+            f"  ·  {reset}"
         )
+
+    def _refresh_countdowns(self) -> None:
+        """Re-render detail labels so the countdown keeps ticking.
+
+        Uses the WindowStats captured at the last data refresh — labels only,
+        no network. Stale labels from removed extra rows are simply skipped.
+        """
+        for label, w in self._countdown_targets:
+            try:
+                label.setText(self._detail_text(w))
+            except RuntimeError:
+                # QLabel already deleted (rebuilt extra rows).
+                pass
 
     def _set_bar(self, bar: QProgressBar, used_pct: float, fmt: str) -> None:
         """Set the progress bar to show REMAINING usage.
