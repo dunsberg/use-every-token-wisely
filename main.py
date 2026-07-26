@@ -18,6 +18,13 @@ def main() -> int:
     app.setApplicationName("AI Usage Monitor")
     app.setQuitOnLastWindowClosed(True)
 
+    # Tooltips are top-level windows and don't inherit widget stylesheets —
+    # without explicit colors they render as an unreadable black bar.
+    app.setStyleSheet(
+        "QToolTip { color: #ffffff; background-color: #2b2b2b;"
+        " border: 1px solid #555555; padding: 4px 6px; }"
+    )
+
     config = load_config()
     window = MainWindow(config)
     window.show()

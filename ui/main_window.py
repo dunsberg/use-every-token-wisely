@@ -476,6 +476,9 @@ class MainWindow(QMainWindow):
         """
         if sys.platform != "win32":
             return
+        # Skip while hidden (tray "Hide") — SWP_SHOWWINDOW would resurrect it.
+        if not self.isVisible():
+            return
         try:
             import ctypes
             hwnd = int(self.winId())
@@ -522,6 +525,12 @@ class MainWindow(QMainWindow):
         refresh_action = QAction("↻ Refresh now", menu)
         refresh_action.triggered.connect(self.refresh_now)
         menu.addAction(refresh_action)
+
+        # Hide the panel; bring it back via the tray icon (double-click or
+        # tray menu → "Show widget").
+        hide_action = QAction("─ Hide widget", menu)
+        hide_action.triggered.connect(self.hide)
+        menu.addAction(hide_action)
 
         menu.addSeparator()
 
