@@ -145,19 +145,6 @@ class KimiProvider(BaseProvider):
             is_real_limit=True,
         ))
 
-        # Kimi Code (coding agent) usage — separate ratio from the main balance
-        kimi_code_ratio = balance.get("kimiCodeUsedRatio", 0)
-        kimi_code_pct = float(kimi_code_ratio) * 100
-        if kimi_code_pct > 0:
-            data.window_model = WindowStats(
-                label="K3",
-                percent=kimi_code_pct,
-                budget=100,
-                used=int(round(kimi_code_pct)),
-                reset_at=expire,  # shares the monthly expiry
-                is_real_limit=True,
-            )
-
         # Plan type
         sub_data = ""
         try:
