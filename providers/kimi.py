@@ -109,8 +109,19 @@ class KimiProvider(BaseProvider):
         balance = payload.get("subscriptionBalance") or {}
         used_ratio = balance.get("amountUsedRatio", 0)
         used_pct = float(used_ratio) * 100
+        expire = _parse_iso(balance.get("expireTime"))
 
-        # 5h window
+        # Total monthly usage (resets at expireTime, e.g. monthly)
+        data.extra_windows.append(WindowStats(
+            label="Total",
+            percent=used_pct,
+            budget=100,
+            used=int(round(used_pct)),
+            reset_at=expire,
+            is_real_limit=True,
+        ))
+
+        # 5h rate-limit window
         rl5h = payload.get("ratelimitCode5h") or {}
         reset5 = _parse_iso(rl5h.get("resetTime"))
         data.extra_windows.append(WindowStats(
@@ -122,7 +133,7 @@ class KimiProvider(BaseProvider):
             is_real_limit=True,
         ))
 
-        # 7d window
+        # 7d rate-limit window
         rl7d = payload.get("ratelimitCode7d") or {}
         reset7 = _parse_iso(rl7d.get("resetTime"))
         data.extra_windows.append(WindowStats(
@@ -143,7 +154,7 @@ class KimiProvider(BaseProvider):
                 percent=kimi_code_pct,
                 budget=100,
                 used=int(round(kimi_code_pct)),
-                reset_at=reset7,  # shares the 7d reset
+                reset_at=expire,  # shares the monthly expiry
                 is_real_limit=True,
             )
 
@@ -165,5 +176,8 @@ class KimiProvider(BaseProvider):
             data.plan_type = "Plus"
         else:
             data.plan_type = str(sub_data) if sub_data else ""
+
+        if payload.get("overdrawn"):
+            data.plan_type += " | Overdrawn"
 
         return data
