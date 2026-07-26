@@ -213,9 +213,13 @@ class MainWindow(QMainWindow):
             ("Trae", TraeProvider),
         ]:
             b = budgets.get(name, {})
+            kwargs = {}
+            if provider_cls is KimiProvider:
+                kwargs["api_key"] = self._config.get("kimi_api_key", "")
             provider = provider_cls(
                 budget_5h=b.get("5h"),
                 budget_7d=b.get("7d"),
+                **kwargs,
             )
             card = ServiceCard(name)
             self._providers.append((name, provider, card))
