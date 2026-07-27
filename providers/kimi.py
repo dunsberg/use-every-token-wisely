@@ -451,24 +451,6 @@ class KimiProvider(BaseProvider):
     def _build_cli_usage(self, payload: dict) -> UsageData:
         data = UsageData(service="Kimi")
 
-        # Weekly quota (request count) → the 7d slot.
-        weekly = payload.get("usage") or {}
-        w7 = self._count_window("7d", weekly)
-        if w7:
-            data.window_7d = w7
-
-        # Short rate-limit window (300 minutes = 5h) → the 5h slot.
-        for entry in payload.get("limits") or []:
-            window = entry.get("window") or {}
-            if (
-                window.get("duration") == 300
-                and window.get("timeUnit") == "TIME_UNIT_MINUTE"
-            ):
-                w5 = self._count_window("5h", entry.get("detail") or {})
-                if w5:
-                    data.window_5h = w5
-                break
-
         # Membership tier, e.g. "LEVEL_INTERMEDIATE" → "Intermediate".
         level = ((payload.get("user") or {}).get("membership") or {}).get("level", "")
         if isinstance(level, str) and level.startswith("LEVEL_"):
