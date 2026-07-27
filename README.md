@@ -10,7 +10,7 @@ It's a personal project, fairly rough around the edges, but it works for my dail
 ![Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![macOS](https://img.shields.io/badge/platform-macOS-silver)
 
-![Screenshot](docs/screenshot.png)
+![Screenshot](docs/widget.png)
 
 ## Privacy
 
