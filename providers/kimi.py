@@ -485,25 +485,27 @@ class KimiProvider(BaseProvider):
             if total is not None:
                 data.extra_windows.append(total)
 
-            # If 5h/7d weren't built from CLI data, add them as info-only
-            # rows (reset countdown, no usage percentage — the desktop API
-            # doesn't provide independent usage for these windows).
-            rl5h = desktop.get("ratelimitCode5h") or {}
-            if rl5h.get("enabled") and data.window_5h.reset_at is None:
-                data.extra_windows.append(WindowStats(
-                    label="5h",
-                    percent=0,
-                    reset_at=_parse_iso(rl5h.get("resetTime")),
-                    is_real_limit=False,
-                ))
-            rl7d = desktop.get("ratelimitCode7d") or {}
-            if rl7d.get("enabled") and data.window_7d.reset_at is None:
-                data.extra_windows.append(WindowStats(
-                    label="7d",
-                    percent=0,
-                    reset_at=_parse_iso(rl7d.get("resetTime")),
-                    is_real_limit=False,
-                ))
+            # Only show 5h/7d if the monthly quota isn't exhausted.
+            is_exhausted = desktop.get("overdrawn") or (
+                total is not None and total.percent >= 100
+            )
+            if not is_exhausted:
+                rl5h = desktop.get("ratelimitCode5h") or {}
+                if rl5h.get("enabled") and data.window_5h.reset_at is None:
+                    data.extra_windows.append(WindowStats(
+                        label="5h",
+                        percent=0,
+                        reset_at=_parse_iso(rl5h.get("resetTime")),
+                        is_real_limit=False,
+                    ))
+                rl7d = desktop.get("ratelimitCode7d") or {}
+                if rl7d.get("enabled") and data.window_7d.reset_at is None:
+                    data.extra_windows.append(WindowStats(
+                        label="7d",
+                        percent=0,
+                        reset_at=_parse_iso(rl7d.get("resetTime")),
+                        is_real_limit=False,
+                    ))
 
             self._apply_overdrawn(data, desktop)
 
@@ -545,30 +547,34 @@ class KimiProvider(BaseProvider):
         if total is not None:
             data.extra_windows.append(total)
 
-        # 5h and 7d are rate-limit windows — the API only returns reset
-        # times, not independent usage percentages. We show them as
-        # info-only rows (0% so the bar is empty, but reset countdown shows).
-        rl5h = payload.get("ratelimitCode5h") or {}
-        if rl5h.get("enabled"):
-            data.extra_windows.append(WindowStats(
-                label="5h",
-                percent=0,
-                budget=100,
-                used=0,
-                reset_at=_parse_iso(rl5h.get("resetTime")),
-                is_real_limit=False,
-            ))
+        # 5h and 7d are rate-limit windows. Only show them if the monthly
+        # quota still has room — once Total is exhausted (overdrawn or 100%),
+        # these windows are meaningless.
+        is_exhausted = payload.get("overdrawn") or (
+            total is not None and total.percent >= 100
+        )
+        if not is_exhausted:
+            rl5h = payload.get("ratelimitCode5h") or {}
+            if rl5h.get("enabled"):
+                data.extra_windows.append(WindowStats(
+                    label="5h",
+                    percent=0,
+                    budget=100,
+                    used=0,
+                    reset_at=_parse_iso(rl5h.get("resetTime")),
+                    is_real_limit=False,
+                ))
 
-        rl7d = payload.get("ratelimitCode7d") or {}
-        if rl7d.get("enabled"):
-            data.extra_windows.append(WindowStats(
-                label="7d",
-                percent=0,
-                budget=100,
-                used=0,
-                reset_at=_parse_iso(rl7d.get("resetTime")),
-                is_real_limit=False,
-            ))
+            rl7d = payload.get("ratelimitCode7d") or {}
+            if rl7d.get("enabled"):
+                data.extra_windows.append(WindowStats(
+                    label="7d",
+                    percent=0,
+                    budget=100,
+                    used=0,
+                    reset_at=_parse_iso(rl7d.get("resetTime")),
+                    is_real_limit=False,
+                ))
 
         sub_data = ""
         try:
