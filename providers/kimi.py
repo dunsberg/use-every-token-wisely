@@ -466,33 +466,49 @@ class KimiProvider(BaseProvider):
             total = self._total_window(desktop)
             if total is not None:
                 data.extra_windows.append(total)
-
-            # If monthly quota exhausted, 5h/7d show as fully used (empty bars).
-            is_exhausted = desktop.get("overdrawn") or (
-                total is not None and total.percent >= 100
-            )
-            window_pct = 100.0 if is_exhausted else 0.0
-
-            rl5h = desktop.get("ratelimitCode5h") or {}
-            if rl5h.get("enabled"):
-                data.extra_windows.append(WindowStats(
-                    label="5h",
-                    percent=window_pct,
-                    reset_at=_parse_iso(rl5h.get("resetTime")),
-                    is_real_limit=is_exhausted,
-                ))
-            rl7d = desktop.get("ratelimitCode7d") or {}
-            if rl7d.get("enabled"):
-                data.extra_windows.append(WindowStats(
-                    label="7d",
-                    percent=window_pct,
-                    reset_at=_parse_iso(rl7d.get("resetTime")),
-                    is_real_limit=is_exhausted,
-                ))
-
+            for label, key in (("5h", "ratelimitCode5h"), ("7d", "ratelimitCode7d")):
+                w = self._ratelimit_window(label, desktop.get(key) or {})
+                if w is not None:
+                    data.extra_windows.append(w)
             self._apply_overdrawn(data, desktop)
+        else:
+            # CLI-only (no desktop app): fall back to the coding API's own
+            # windows so the card isn't empty.
+            weekly = payload.get("usage") or {}
+            w7 = self._count_window("7d", weekly)
+            if w7:
+                data.window_7d = w7
+            for entry in payload.get("limits") or []:
+                window = entry.get("window") or {}
+                if (
+                    window.get("duration") == 300
+                    and window.get("timeUnit") == "TIME_UNIT_MINUTE"
+                ):
+                    w5 = self._count_window("5h", entry.get("detail") or {})
+                    if w5:
+                        data.window_5h = w5
+                    break
 
         return data
+
+    @staticmethod
+    def _ratelimit_window(label: str, rl: dict) -> WindowStats | None:
+        """5h/7d rate-limit window from a {ratio, enabled, resetTime} dict.
+
+        The API reports a real per-window usage ``ratio`` — use it so the
+        bars show actual usage instead of a synthetic 0%/100%.
+        """
+        if not rl.get("enabled"):
+            return None
+        used_pct = float(rl.get("ratio") or 0) * 100
+        return WindowStats(
+            label=label,
+            percent=used_pct,
+            budget=100,
+            used=int(round(used_pct)),
+            reset_at=_parse_iso(rl.get("resetTime")),
+            is_real_limit=True,
+        )
 
     @staticmethod
     def _total_window(payload: dict) -> WindowStats | None:
@@ -525,39 +541,15 @@ class KimiProvider(BaseProvider):
         data = UsageData(service="Kimi")
 
         # Total monthly usage (resets at expireTime, e.g. monthly)
-        # This is the only real usage percentage the API provides.
         total = self._total_window(payload)
         if total is not None:
             data.extra_windows.append(total)
 
-        # 5h and 7d: if monthly quota is exhausted, show as fully used
-        # (empty bars). Otherwise show as info-only (no independent usage).
-        is_exhausted = payload.get("overdrawn") or (
-            total is not None and total.percent >= 100
-        )
-        window_pct = 100.0 if is_exhausted else 0.0
-
-        rl5h = payload.get("ratelimitCode5h") or {}
-        if rl5h.get("enabled"):
-            data.extra_windows.append(WindowStats(
-                label="5h",
-                percent=window_pct,
-                budget=100,
-                used=int(round(window_pct)),
-                reset_at=_parse_iso(rl5h.get("resetTime")),
-                is_real_limit=is_exhausted,
-            ))
-
-        rl7d = payload.get("ratelimitCode7d") or {}
-        if rl7d.get("enabled"):
-            data.extra_windows.append(WindowStats(
-                label="7d",
-                percent=window_pct,
-                budget=100,
-                used=int(round(window_pct)),
-                reset_at=_parse_iso(rl7d.get("resetTime")),
-                is_real_limit=is_exhausted,
-            ))
+        # 5h/7d rate-limit windows — the API reports a real per-window ratio.
+        for label, key in (("5h", "ratelimitCode5h"), ("7d", "ratelimitCode7d")):
+            w = self._ratelimit_window(label, payload.get(key) or {})
+            if w is not None:
+                data.extra_windows.append(w)
 
         sub_data = ""
         try:
